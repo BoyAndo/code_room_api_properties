@@ -316,7 +316,7 @@ model Property {
   comuna                String   // ✨ NUEVO: Comuna chilena (antes "city")
   region                String   // ✨ NUEVO: Región chilena (antes "state")
   zipCode               String?
-  propertyType          PropertyType // APARTMENT, HOUSE, ROOM, STUDIO, COMMERCIAL
+  propertyType          PropertyType // APARTMENT, HOUSE, ROOM
   bedrooms              Int
   bathrooms             Int
   squareMeters          Float?
@@ -732,3 +732,7 @@ Este proyecto está bajo licencia privada y es parte del proyecto de mi proyecto
 **Versión**: 1.0.0  
 **Última actualización**: Agosto 2025
 **Cambios pendientes**: Agregar validación en la creación de properties
+
+**🏠 Code Room** - _Conectando estudiantes con su hogar ideal para el éxito académico_
+
+[![Made with ❤️ by BoyAndo](https://img.shields.io/badge/Made%20with%20❤️%20by-BoyAndo-red.svg)](https://github.com/BoyAndo)

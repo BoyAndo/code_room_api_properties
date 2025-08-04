@@ -19,8 +19,6 @@ enum PropertyType {
   APARTMENT
   HOUSE
   ROOM
-  STUDIO
-  COMMERCIAL
 }
 
 model Property {

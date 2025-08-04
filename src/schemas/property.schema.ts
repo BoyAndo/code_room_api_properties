@@ -1,13 +1,7 @@
 import { z } from "zod";
 
 // Enum para tipos de propiedad
-export const PropertyTypeEnum = z.enum([
-  "APARTMENT",
-  "HOUSE",
-  "ROOM",
-  "STUDIO",
-  "COMMERCIAL",
-]);
+export const PropertyTypeEnum = z.enum(["APARTMENT", "HOUSE", "ROOM"]);
 
 // Schema principal para crear una propiedad (compatible con form-data)
 export const createPropertySchema = z.object({
