@@ -7,20 +7,27 @@ import {
   deletePropertyController,
 } from "../controllers/propertyController";
 import { uploadPropertyFiles } from "../middlewares/multer";
+import { verifyToken, requireLandlord } from "../middlewares/auth.middleware";
 
 const router = Router();
 
 /**
  * @route POST /api/properties
  * @desc Crear una nueva propiedad
- * @access Public (por ahora, después se puede agregar autenticación)
+ * @access Private (solo landlords autenticados)
  */
-router.post("/", uploadPropertyFiles, createPropertyController);
+router.post(
+  "/",
+  verifyToken,
+  requireLandlord,
+  uploadPropertyFiles,
+  createPropertyController
+);
 
 /**
  * @route GET /api/properties
  * @desc Obtener propiedades con filtros opcionales
- * @query city, state, propertyType, minRent, maxRent, minBedrooms, maxBedrooms, etc.
+ * @query comuna, region, propertyType, minRent, maxRent, minBedrooms, maxBedrooms, etc.
  * @access Public
  */
 router.get("/", getPropertiesController);
@@ -35,15 +42,15 @@ router.get("/:id", getPropertyController);
 /**
  * @route PUT /api/properties/:id
  * @desc Actualizar una propiedad específica
- * @access Private (landlord propietario o admin)
+ * @access Private (solo el landlord propietario)
  */
-router.put("/:id", updatePropertyController);
+router.put("/:id", verifyToken, requireLandlord, updatePropertyController);
 
 /**
  * @route DELETE /api/properties/:id
  * @desc Eliminar una propiedad específica
- * @access Private (landlord propietario o admin)
+ * @access Private (solo el landlord propietario)
  */
-router.delete("/:id", deletePropertyController);
+router.delete("/:id", verifyToken, requireLandlord, deletePropertyController);
 
 export default router;

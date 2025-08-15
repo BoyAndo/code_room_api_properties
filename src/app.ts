@@ -3,6 +3,7 @@ dotenv.config({ quiet: true });
 import express from "express";
 import cookieParser from "cookie-parser";
 import propertyRoutes from "./routes/propertyRoutes";
+import { verifyToken, getCurrentUser } from "./middlewares/auth.middleware";
 
 const app = express();
 
@@ -31,6 +32,22 @@ app.use((req, res, next) => {
 // Rutas principales
 app.use("/api/properties", propertyRoutes);
 
+// Endpoint de prueba de autenticación
+app.get("/api/auth/test", verifyToken, (req, res) => {
+  const currentUser = getCurrentUser(req);
+  res.json({
+    success: true,
+    message: "Token válido - Usuario autenticado",
+    user: {
+      id: currentUser?.id,
+      name: currentUser?.landlordName,
+      email: currentUser?.landlordEmail,
+      role: currentUser?.role,
+      rut: currentUser?.landlordRut,
+    },
+  });
+});
+
 // Ruta de salud
 app.get("/health", (req, res) => {
   res.json({
@@ -47,6 +64,7 @@ app.get("/", (req, res) => {
     version: "1.0.0",
     endpoints: {
       properties: "/api/properties",
+      authTest: "/api/auth/test",
       health: "/health",
     },
   });

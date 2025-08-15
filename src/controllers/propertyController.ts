@@ -16,16 +16,62 @@ import {
   uploadImageToBucket,
   uploadPropertyImageToBucket,
 } from "../services/shared/s3Service";
+import {
+  getCurrentUser,
+  isResourceOwner,
+  LandlordPayload,
+} from "../middlewares/auth.middleware";
 
 /**
  * Crear una nueva propiedad
  */
 export const createPropertyController = async (req: Request, res: Response) => {
   try {
+    // Obtener información del usuario autenticado
+    const currentUser = getCurrentUser(req);
+    if (!currentUser) {
+      res.status(401).json({
+        success: false,
+        message: "Usuario no autenticado",
+      });
+      return;
+    }
+
     // Validar datos del formulario
     const propertyData = createPropertySchema.parse(req.body);
 
+    // Verificar que el landlordId coincida con el usuario autenticado
+    if (propertyData.landlordId !== currentUser.id) {
+      res.status(403).json({
+        success: false,
+        message: "No puedes crear propiedades para otro landlord",
+        authenticatedUser: currentUser.id,
+        requestedLandlordId: propertyData.landlordId,
+      });
+      return;
+    }
+
+    // Asegurar que el nombre del landlord coincida con el token
+    if (
+      propertyData.landlordName.toLowerCase() !==
+      currentUser.landlordName.toLowerCase()
+    ) {
+      res.status(400).json({
+        success: false,
+        message:
+          "El nombre del landlord debe coincidir con el usuario autenticado",
+        expectedName: currentUser.landlordName,
+        providedName: propertyData.landlordName,
+      });
+      return;
+    }
+
     console.log("📝 Datos de la propiedad:", propertyData);
+    console.log("👤 Usuario autenticado:", {
+      id: currentUser.id,
+      name: currentUser.landlordName,
+      email: currentUser.landlordEmail,
+    });
 
     // Verificar archivos subidos
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -286,12 +332,42 @@ export const getPropertiesController = async (req: Request, res: Response) => {
  */
 export const updatePropertyController = async (req: Request, res: Response) => {
   try {
+    // Obtener información del usuario autenticado
+    const currentUser = getCurrentUser(req);
+    if (!currentUser) {
+      res.status(401).json({
+        success: false,
+        message: "Usuario no autenticado",
+      });
+      return;
+    }
+
     const id = parseInt(req.params.id);
 
     if (isNaN(id)) {
       res.status(400).json({
         success: false,
         message: "ID de propiedad inválido",
+      });
+      return;
+    }
+
+    // Verificar que la propiedad existe y que el usuario es el propietario
+    const existingProperty = await getPropertyById(id);
+    if (!existingProperty) {
+      res.status(404).json({
+        success: false,
+        message: "Propiedad no encontrada",
+      });
+      return;
+    }
+
+    if (!isResourceOwner(req, existingProperty.landlordId)) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permisos para actualizar esta propiedad",
+        propertyOwner: existingProperty.landlordId,
+        authenticatedUser: currentUser.id,
       });
       return;
     }
@@ -330,12 +406,42 @@ export const updatePropertyController = async (req: Request, res: Response) => {
  */
 export const deletePropertyController = async (req: Request, res: Response) => {
   try {
+    // Obtener información del usuario autenticado
+    const currentUser = getCurrentUser(req);
+    if (!currentUser) {
+      res.status(401).json({
+        success: false,
+        message: "Usuario no autenticado",
+      });
+      return;
+    }
+
     const id = parseInt(req.params.id);
 
     if (isNaN(id)) {
       res.status(400).json({
         success: false,
         message: "ID de propiedad inválido",
+      });
+      return;
+    }
+
+    // Verificar que la propiedad existe y que el usuario es el propietario
+    const existingProperty = await getPropertyById(id);
+    if (!existingProperty) {
+      res.status(404).json({
+        success: false,
+        message: "Propiedad no encontrada",
+      });
+      return;
+    }
+
+    if (!isResourceOwner(req, existingProperty.landlordId)) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permisos para eliminar esta propiedad",
+        propertyOwner: existingProperty.landlordId,
+        authenticatedUser: currentUser.id,
       });
       return;
     }
