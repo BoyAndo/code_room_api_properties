@@ -7,7 +7,9 @@ import {
 import {
   createProperty,
   getPropertyById,
+  getPropertyByIdWithLandlord,
   getProperties,
+  getPropertiesWithLandlordInfo,
   updateProperty,
   deleteProperty,
 } from "../services/property/property.service";
@@ -372,8 +374,86 @@ export const updatePropertyController = async (req: Request, res: Response) => {
       return;
     }
 
+    console.log("📥 Datos del body recibidos:", req.body);
+    console.log("🆔 ID de la propiedad:", id);
+
+    // Verificar si se subieron nuevas imágenes
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const propertyImageFiles = files?.propertyImages || [];
+
+    console.log(
+      "📸 Nuevas imágenes recibidas:",
+      propertyImageFiles.map((f) => f.originalname)
+    );
+
+    // Si se subieron nuevas imágenes, subirlas a S3/MinIO
+    let newImageUrls: string[] = [];
+    if (propertyImageFiles.length > 0) {
+      console.log("📤 Subiendo nuevas imágenes...");
+
+      for (const imageFile of propertyImageFiles) {
+        try {
+          const imageUrl = await uploadPropertyImageToBucket(
+            imageFile.buffer,
+            imageFile.originalname
+          );
+          newImageUrls.push(imageUrl);
+          console.log("✅ Imagen subida:", imageUrl);
+        } catch (error) {
+          console.error("❌ Error subiendo imagen:", error);
+          res.status(500).json({
+            success: false,
+            message: "Error subiendo imagen",
+            error: error instanceof Error ? error.message : "Error desconocido",
+          });
+          return;
+        }
+      }
+    }
+
+    console.log("📋 Datos combinados para validación:", { id, ...req.body });
+
     const updateData = updatePropertySchema.parse({ id, ...req.body });
-    const updatedProperty = await updateProperty(updateData);
+    console.log("✅ Datos validados correctamente:", updateData);
+
+    // Si se subieron nuevas imágenes, actualizar el campo images
+    let finalUpdateData = updateData;
+    if (newImageUrls.length > 0) {
+      // Verificar si se deben reemplazar las imágenes o agregar a las existentes
+      const shouldReplace = updateData.replaceImages || false;
+
+      if (shouldReplace) {
+        // Reemplazar todas las imágenes con las nuevas
+        finalUpdateData = {
+          ...updateData,
+          images: newImageUrls,
+        };
+        console.log("� Reemplazando todas las imágenes con:", newImageUrls);
+      } else {
+        // Obtener imágenes existentes (ya parseadas por getPropertyById)
+        const existingImages = existingProperty.images || [];
+        console.log("📷 Imágenes existentes:", existingImages);
+
+        const allImages = [...existingImages, ...newImageUrls];
+        finalUpdateData = {
+          ...updateData,
+          images: allImages,
+        };
+        console.log("📸 Agregando nuevas imágenes. Total:", allImages);
+      }
+    }
+
+    const updatedProperty = await updateProperty(finalUpdateData);
+
+    console.log("🎉 Respuesta final del controlador:", {
+      id: updatedProperty.id,
+      title: updatedProperty.title,
+      monthlyRent: updatedProperty.monthlyRent,
+      isAvailable: updatedProperty.isAvailable,
+      imagesCount: Array.isArray(updatedProperty.images)
+        ? updatedProperty.images.length
+        : 0,
+    });
 
     res.json({
       success: true,
@@ -454,6 +534,96 @@ export const deletePropertyController = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("❌ Error eliminando propiedad:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor",
+      error: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+};
+
+/**
+ * Obtener propiedad por ID con información del landlord (OPTIMIZADO)
+ */
+export const getPropertyWithLandlordController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const propertyId = parseInt(req.params.id);
+
+    if (isNaN(propertyId)) {
+      return res.status(400).json({
+        success: false,
+        message: "ID de propiedad inválido",
+      });
+    }
+
+    console.log(
+      `🏠 Obteniendo propiedad ${propertyId} con información del landlord...`
+    );
+
+    const property = await getPropertyByIdWithLandlord(propertyId);
+
+    res.json({
+      success: true,
+      data: property,
+    });
+  } catch (error) {
+    console.error("❌ Error obteniendo propiedad con landlord:", error);
+
+    if (error instanceof Error && error.message === "Propiedad no encontrada") {
+      return res.status(404).json({
+        success: false,
+        message: "Propiedad no encontrada",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor",
+      error: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+};
+
+/**
+ * Obtener propiedades con información de landlords (OPTIMIZADO)
+ */
+export const getPropertiesWithLandlordController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    console.log("🏠 Obteniendo propiedades con información de landlords...");
+    console.log("📋 Query params:", req.query);
+
+    // Validar parámetros de consulta
+    const parseResult = propertyFiltersSchema.safeParse(req.query);
+
+    if (!parseResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Parámetros de consulta inválidos",
+        errors: parseResult.error.issues,
+      });
+    }
+
+    const filters = parseResult.data;
+
+    const result = await getPropertiesWithLandlordInfo(filters);
+
+    console.log(
+      `✅ Devolviendo ${result.properties.length} propiedades con landlord info`
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("❌ Error obteniendo propiedades con landlords:", error);
 
     res.status(500).json({
       success: false,

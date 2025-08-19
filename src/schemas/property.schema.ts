@@ -73,17 +73,38 @@ export const createPropertySchema = z.object({
   ]),
   amenities: z
     .union([
-      z.array(z.string()),
+      z.array(z.number()),
       z.string().transform((val) => {
         if (!val || val.trim() === "") return [];
         try {
           const parsed = JSON.parse(val);
-          return Array.isArray(parsed) ? parsed : [val];
-        } catch {
-          // Si no es JSON válido, dividir por comas
+          if (Array.isArray(parsed)) {
+            // Convertir a números si es un array
+            return parsed.map((item) => {
+              const num = parseInt(item);
+              if (isNaN(num)) {
+                throw new Error(`Amenity ID inválido: ${item}`);
+              }
+              return num;
+            });
+          }
+          // Si es un solo valor, convertir a número
+          const num = parseInt(parsed);
+          if (isNaN(num)) {
+            throw new Error(`Amenity ID inválido: ${parsed}`);
+          }
+          return [num];
+        } catch (error) {
+          // Si no es JSON válido, dividir por comas y convertir a números
           return val
             .split(",")
-            .map((item) => item.trim())
+            .map((item) => {
+              const num = parseInt(item.trim());
+              if (isNaN(num)) {
+                throw new Error(`Amenity ID inválido: ${item.trim()}`);
+              }
+              return num;
+            })
             .filter(Boolean);
         }
       }),
@@ -119,9 +140,21 @@ export const createPropertySchema = z.object({
 });
 
 // Schema para actualizar una propiedad (todos los campos opcionales excepto el ID)
+// Compatible con form-data (igual que createPropertySchema)
 export const updatePropertySchema = z.object({
   id: z.number().int().positive("El ID debe ser un número positivo"),
-  landlordId: z.number().int().positive().optional(),
+  landlordId: z
+    .union([
+      z.number().int().positive(),
+      z.string().transform((val) => {
+        const num = parseInt(val, 10);
+        if (isNaN(num) || num <= 0) {
+          throw new Error("El ID del landlord debe ser un número positivo");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
   landlordName: z.string().min(2).optional(),
   title: z.string().min(5).max(100).optional(),
   description: z.string().optional(),
@@ -130,15 +163,143 @@ export const updatePropertySchema = z.object({
   region: z.string().min(2).optional(),
   zipCode: z.string().optional(),
   propertyType: PropertyTypeEnum.optional(),
-  bedrooms: z.number().int().min(0).optional(),
-  bathrooms: z.number().int().min(0).optional(),
-  squareMeters: z.number().positive().optional(),
-  monthlyRent: z.number().positive().optional(),
-  isAvailable: z.boolean().optional(),
-  amenities: z.array(z.string()).optional(),
+  bedrooms: z
+    .union([
+      z.number().int().min(0),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseInt(val, 10);
+        if (isNaN(num) || num < 0) {
+          throw new Error("El número de habitaciones no puede ser negativo");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  bathrooms: z
+    .union([
+      z.number().int().min(0),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseInt(val, 10);
+        if (isNaN(num) || num < 0) {
+          throw new Error("El número de baños no puede ser negativo");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  squareMeters: z
+    .union([
+      z.number().positive(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) {
+          throw new Error("Los metros cuadrados deben ser un número positivo");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  monthlyRent: z
+    .union([
+      z.number().positive(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) {
+          throw new Error("La renta mensual debe ser un número positivo");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  isAvailable: z
+    .union([
+      z.boolean(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        return val.toLowerCase() === "true";
+      }),
+    ])
+    .optional(),
+  amenities: z
+    .union([
+      z.array(z.number()),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return [];
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            // Convertir a números si es un array
+            return parsed.map((item) => {
+              const num = parseInt(item);
+              if (isNaN(num)) {
+                throw new Error(`Amenity ID inválido: ${item}`);
+              }
+              return num;
+            });
+          }
+          // Si es un solo valor, convertir a número
+          const num = parseInt(parsed);
+          if (isNaN(num)) {
+            throw new Error(`Amenity ID inválido: ${parsed}`);
+          }
+          return [num];
+        } catch (error) {
+          // Si no es JSON válido, dividir por comas y convertir a números
+          return val
+            .split(",")
+            .map((item) => {
+              const num = parseInt(item.trim());
+              if (isNaN(num)) {
+                throw new Error(`Amenity ID inválido: ${item.trim()}`);
+              }
+              return num;
+            })
+            .filter(Boolean);
+        }
+      }),
+    ])
+    .optional(),
   rules: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  latitude: z
+    .union([
+      z.number(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num)) {
+          throw new Error("La latitud debe ser un número válido");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  longitude: z
+    .union([
+      z.number(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num)) {
+          throw new Error("La longitud debe ser un número válido");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  images: z.array(z.string()).optional(), // Array de URLs de imágenes
+  replaceImages: z
+    .union([
+      z.boolean(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return false;
+        return val.toLowerCase() === "true";
+      }),
+    ])
+    .optional(), // Si true, reemplaza todas las imágenes; si false, agrega a las existentes
 });
 
 // Schema para filtros de búsqueda

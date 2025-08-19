@@ -36,14 +36,65 @@ model Property {
   squareMeters          Float?
   monthlyRent           Decimal  @db.Decimal(10, 2)
   isAvailable          Boolean  @default(true)
-  images                String?  @db.Text // JSON array de URLs
   utilityBillUrl        String   // URL de la cuenta de servicios validada
   utilityBillValidated  Boolean  @default(false)
-  amenities             String?  @db.Text // JSON array
   rules                 String?  @db.Text
   latitude              Decimal? @db.Decimal(10, 8)
   longitude             Decimal? @db.Decimal(11, 8)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  
+  // Relaciones
+  propertyImages        PropertyImage[]
+  propertyAmenities     PropertyAmenity[]
+}
+
+model PropertyImage {
+  id           Int      @id @default(autoincrement())
+  propertyId   Int
+  imageUrl     String   @db.VarChar(500)
+  displayOrder Int      @default(0)
+  altText      String?  @db.VarChar(255)
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relación con propiedad
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  // Índices para performance
+  @@index([propertyId, displayOrder])
+  @@index([propertyId, isPrimary])
+}
+
+// Modelo para amenities (características de la propiedad)
+model Amenity {
+  id                Int                @id @default(autoincrement())
+  name              String             @unique @db.VarChar(100)
+  description       String?            @db.Text
+  icon              String?            @db.VarChar(50) // Para iconos en el frontend
+  category          String?            @db.VarChar(50) // "utilities", "recreation", "security", etc.
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  // Relación con propiedades
+  propertyAmenities PropertyAmenity[]
+}
+
+// Tabla pivot/join para la relación many-to-many entre Property y Amenity
+model PropertyAmenity {
+  id         Int      @id @default(autoincrement())
+  propertyId Int
+  amenityId  Int
+  createdAt  DateTime @default(now())
+  
+  // Relaciones
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+  
+  // Índices y constrains
+  @@unique([propertyId, amenityId]) // Evitar duplicados
+  @@index([propertyId])
+  @@index([amenityId])
 }
 

@@ -4,7 +4,6 @@ import {
   UpdatePropertyInput,
   PropertyFilters,
 } from "../../schemas/property.schema";
-import { fetchLandlordsInfo } from "../landlord/landlord.service";
 
 const prisma = new PrismaClient();
 
@@ -71,13 +70,11 @@ export const createProperty = async (
           })),
         },
         // Crear las relaciones con amenities si se proporcionan
-        propertyAmenities: propertyData.amenities
-          ? {
-              create: propertyData.amenities.map((amenityId) => ({
-                amenityId: amenityId,
-              })),
-            }
-          : undefined,
+        propertyAmenities: propertyData.amenities ? {
+          create: propertyData.amenities.map(amenityId => ({
+            amenityId: amenityId
+          }))
+        } : undefined,
       },
       include: {
         propertyImages: {
@@ -85,8 +82,8 @@ export const createProperty = async (
         },
         propertyAmenities: {
           include: {
-            amenity: true,
-          },
+            amenity: true
+          }
         },
       },
     });
@@ -116,9 +113,9 @@ export const getPropertyById = async (id: number) => {
         },
         propertyAmenities: {
           include: {
-            amenity: true,
-          },
-        },
+            amenity: true
+          }
+        }
       },
     });
 
@@ -129,64 +126,12 @@ export const getPropertyById = async (id: number) => {
     return {
       ...property,
       images: property.propertyImages.map((img) => img.imageUrl),
-      amenities: property.propertyAmenities.map((pa) => pa.amenity),
+      amenities: property.propertyAmenities.map(pa => pa.amenity),
     };
   } catch (error) {
     console.error("❌ Error obteniendo propiedad:", error);
     throw new Error(
       `Error obteniendo propiedad: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`
-    );
-  }
-};
-
-/**
- * Obtiene una propiedad por ID con información del landlord (OPTIMIZADO)
- */
-export const getPropertyByIdWithLandlord = async (id: number) => {
-  try {
-    console.log(
-      `🏠 Obteniendo propiedad ${id} con información del landlord...`
-    );
-
-    const property = await prisma.property.findUnique({
-      where: { id },
-      include: {
-        propertyImages: {
-          orderBy: { displayOrder: "asc" },
-        },
-        propertyAmenities: {
-          include: {
-            amenity: true,
-          },
-        },
-      },
-    });
-
-    if (!property) {
-      throw new Error("Propiedad no encontrada");
-    }
-
-    // Obtener información del landlord
-    const landlordsInfo = await fetchLandlordsInfo([property.landlordId]);
-    const landlordInfo = landlordsInfo.length > 0 ? landlordsInfo[0] : null;
-
-    console.log(`✅ Propiedad ${id} obtenida con información del landlord`);
-
-    return {
-      ...property,
-      images: property.propertyImages.map((img) => img.imageUrl),
-      amenities: property.propertyAmenities.map((pa) => pa.amenity),
-      landlord: landlordInfo || {
-        id: property.landlordId,
-        landlordName: "Landlord no encontrado",
-      },
-    };
-  } catch (error) {
-    console.error("❌ Error obteniendo propiedad con landlord info:", error);
-    throw new Error(
-      `Error obteniendo propiedad con landlord info: ${
         error instanceof Error ? error.message : "Error desconocido"
       }`
     );
@@ -257,9 +202,9 @@ export const getProperties = async (filters: PropertyFilters) => {
           },
           propertyAmenities: {
             include: {
-              amenity: true,
-            },
-          },
+              amenity: true
+            }
+          }
         },
       }),
       prisma.property.count({ where }),
@@ -270,7 +215,7 @@ export const getProperties = async (filters: PropertyFilters) => {
       return {
         ...property,
         images: property.propertyImages.map((img) => img.imageUrl),
-        amenities: property.propertyAmenities.map((pa) => pa.amenity),
+        amenities: property.propertyAmenities.map(pa => pa.amenity),
       };
     });
 
@@ -294,143 +239,6 @@ export const getProperties = async (filters: PropertyFilters) => {
 };
 
 /**
- * Obtiene propiedades con información completa del landlord (OPTIMIZADO)
- * Esta función hace una sola llamada al microservicio de landlords para todos los propietarios
- */
-export const getPropertiesWithLandlordInfo = async (
-  filters: PropertyFilters
-) => {
-  try {
-    console.log("🏠 Obteniendo propiedades con información de landlords...");
-
-    const {
-      comuna,
-      region,
-      propertyType,
-      minRent,
-      maxRent,
-      minBedrooms,
-      maxBedrooms,
-      minBathrooms,
-      maxBathrooms,
-      isAvailable,
-      landlordId,
-      page = 1,
-      limit = 10,
-    } = filters;
-
-    const skip = (page - 1) * limit;
-
-    // Construir condiciones de filtro
-    const where: any = {};
-
-    if (comuna) where.comuna = { contains: comuna, mode: "insensitive" };
-    if (region) where.region = { contains: region, mode: "insensitive" };
-    if (propertyType) where.propertyType = propertyType;
-    if (landlordId) where.landlordId = landlordId;
-    if (isAvailable !== undefined) where.isAvailable = isAvailable;
-
-    // Filtros de rango
-    if (minRent || maxRent) {
-      where.monthlyRent = {};
-      if (minRent) where.monthlyRent.gte = minRent;
-      if (maxRent) where.monthlyRent.lte = maxRent;
-    }
-
-    if (minBedrooms || maxBedrooms) {
-      where.bedrooms = {};
-      if (minBedrooms) where.bedrooms.gte = minBedrooms;
-      if (maxBedrooms) where.bedrooms.lte = maxBedrooms;
-    }
-
-    if (minBathrooms || maxBathrooms) {
-      where.bathrooms = {};
-      if (minBathrooms) where.bathrooms.gte = minBathrooms;
-      if (maxBathrooms) where.bathrooms.lte = maxBathrooms;
-    }
-
-    // Obtener propiedades y conteo total
-    const [properties, total] = await Promise.all([
-      prisma.property.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          propertyImages: {
-            where: { isPrimary: true }, // Solo imagen principal para performance
-            take: 1,
-          },
-          propertyAmenities: {
-            include: {
-              amenity: {
-                select: {
-                  id: true,
-                  name: true,
-                  category: true,
-                  icon: true,
-                },
-              },
-            },
-          },
-        },
-      }),
-      prisma.property.count({ where }),
-    ]);
-
-    // Obtener IDs únicos de landlords
-    const landlordIds = [...new Set(properties.map((p) => p.landlordId))];
-    console.log(
-      `🔍 Encontrados ${landlordIds.length} landlords únicos para ${properties.length} propiedades`
-    );
-
-    // Obtener información de landlords en una sola llamada batch
-    const landlordsInfo = await fetchLandlordsInfo(landlordIds);
-
-    // Crear mapa de landlords para acceso rápido
-    const landlordsMap = new Map(
-      landlordsInfo.map((landlord) => [landlord.id, landlord])
-    );
-
-    // Combinar datos de propiedades con información de landlords
-    const propertiesWithLandlord = properties.map((property) => {
-      const landlordInfo = landlordsMap.get(property.landlordId);
-
-      return {
-        ...property,
-        images: property.propertyImages.map((img) => img.imageUrl),
-        amenities: property.propertyAmenities.map((pa) => pa.amenity),
-        landlord: landlordInfo || {
-          id: property.landlordId,
-          landlordName: "Landlord no encontrado",
-        },
-      };
-    });
-
-    console.log(
-      `✅ Obtenidas ${propertiesWithLandlord.length} propiedades con información de landlords`
-    );
-
-    return {
-      properties: propertiesWithLandlord,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  } catch (error) {
-    console.error("❌ Error obteniendo propiedades con landlord info:", error);
-    throw new Error(
-      `Error obteniendo propiedades con landlord info: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`
-    );
-  }
-};
-
-/**
  * Actualiza una propiedad
  */
 export const updateProperty = async (updateData: UpdatePropertyInput) => {
@@ -443,7 +251,13 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
     // Preparar datos para actualización
     const updatePayload: any = { ...data };
 
-    console.log("📤 Payload que se enviará a Prisma:", updatePayload);
+    // Convertir amenities a JSON si se proporciona
+    if (data.amenities) {
+      console.log("🏷️ Convirtiendo amenities a JSON:", data.amenities);
+      updatePayload.amenities = JSON.stringify(data.amenities);
+    }
+
+    console.log(" Payload que se enviará a Prisma:", updatePayload);
     console.log("🆔 ID de propiedad a actualizar:", id);
 
     // Verificar que la propiedad existe antes de actualizar
@@ -490,20 +304,18 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
       if (amenities && amenities.length > 0) {
         // Eliminar todas las relaciones existentes de amenities
         await tx.propertyAmenity.deleteMany({
-          where: { propertyId: id },
+          where: { propertyId: id }
         });
 
         // Crear las nuevas relaciones con amenities
         await tx.propertyAmenity.createMany({
-          data: amenities.map((amenityId) => ({
+          data: amenities.map(amenityId => ({
             propertyId: id,
-            amenityId: amenityId,
-          })),
+            amenityId: amenityId
+          }))
         });
 
-        console.log(
-          `🏷️ Amenities actualizados: ${amenities.length} amenities asignados`
-        );
+        console.log(`🏷️ Amenities actualizados: ${amenities.length} amenities asignados`);
       }
 
       // Obtener la propiedad actualizada con las imágenes
@@ -515,9 +327,9 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
           },
           propertyAmenities: {
             include: {
-              amenity: true,
-            },
-          },
+              amenity: true
+            }
+          }
         },
       });
     });
@@ -539,7 +351,7 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
     const finalResult = {
       ...result,
       images: result.propertyImages.map((img) => img.imageUrl),
-      amenities: result.propertyAmenities.map((pa) => pa.amenity),
+      amenities: result.propertyAmenities.map(pa => pa.amenity),
     };
 
     console.log("📄 Resultado final preparado para respuesta");
