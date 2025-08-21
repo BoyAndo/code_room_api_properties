@@ -14,6 +14,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// MODELOS DE USUARIOS (de api_register)
+// ============================================
+
+model Student {
+  id                    Int      @id @default(autoincrement())
+  studentRut            String   @unique
+  studentEmail          String   @unique
+  studentName           String
+  password              String
+  studentCollege        String
+  studentCertificateUrl String
+  role                  String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Landlord {
+  id                Int      @id @default(autoincrement())
+  landlordRut       String   @unique
+  landlordEmail     String   @unique
+  landlordName      String
+  password          String
+  landlordCarnetUrl String
+  role              String   @default("landlord")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relación con propiedades
+  properties        Property[]
+}
+
+// ============================================
+// MODELOS DE PROPIEDADES (api_properties)
+// ============================================
+
 // Enum para tipos de propiedad
 enum PropertyType {
   APARTMENT
@@ -23,7 +59,7 @@ enum PropertyType {
 
 model Property {
   id                    Int      @id @default(autoincrement())
-  landlordId            Int      // Foreign key al landlord del otro microservicio
+  landlordId            Int      // Foreign key al landlord (ahora en la misma BD)
   title                 String
   description           String?  @db.Text
   address               String
@@ -45,8 +81,11 @@ model Property {
   updatedAt             DateTime @updatedAt
   
   // Relaciones
+  landlord              Landlord          @relation(fields: [landlordId], references: [id], onDelete: Cascade)
   propertyImages        PropertyImage[]
   propertyAmenities     PropertyAmenity[]
+  
+  @@index([landlordId])
 }
 
 model PropertyImage {
@@ -61,7 +100,7 @@ model PropertyImage {
   
   // Relación con propiedad
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  
+
   // Índices para performance
   @@index([propertyId, displayOrder])
   @@index([propertyId, isPrimary])

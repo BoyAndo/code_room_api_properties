@@ -1,6 +1,11 @@
 /**
- * Servicio para integración con la API de Landlords
+ * Servicio para consultar landlords directamente desde la base de datos consolidada
  */
+
+import { PrismaClient } from "../../generated/prisma";
+
+// Instancia de Prisma para consultas directas a la BD consolidada
+const prisma = new PrismaClient();
 
 interface LandlordInfo {
   id: number;
@@ -13,8 +18,7 @@ interface LandlordBatchResponse {
 }
 
 /**
- * Obtiene información básica de múltiples landlords
- * Como no tenemos endpoint batch, obtenemos todos y filtramos
+ * Obtiene información básica de múltiples landlords directamente de la BD
  */
 export const fetchLandlordsInfo = async (
   landlordIds: number[]
@@ -25,60 +29,32 @@ export const fetchLandlordsInfo = async (
     }
 
     console.log(
-      `🏠 Obteniendo información de ${landlordIds.length} landlords...`
+      `🏠 Obteniendo información de ${landlordIds.length} landlords desde BD...`
     );
 
-    // Obtener todos los landlords de la API
-    const response = await fetch(`${process.env.LANDLORDS_API_URL}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
+    // Consulta directa a la tabla de landlords en la BD consolidada
+    const landlords = await prisma.landlord.findMany({
+      where: {
+        id: {
+          in: landlordIds,
+        },
+      },
+      select: {
+        id: true,
+        landlordName: true,
       },
     });
 
-    if (!response.ok) {
-      console.warn(
-        `⚠️ API de landlords respondió con status ${response.status}`
-      );
-      return [];
-    }
-
-    const responseData = await response.json();
     console.log(
-      "🔍 Respuesta completa de landlords API:",
-      JSON.stringify(responseData, null, 2)
+      `✅ Información de ${landlords.length} landlords obtenida exitosamente desde BD`
     );
 
-    // La respuesta puede tener los datos en "data" o directamente en "landlords"
-    let allLandlords: LandlordInfo[] = [];
-
-    if (responseData.success && responseData.landlords) {
-      allLandlords = responseData.landlords;
-    } else if (responseData.data && responseData.data.landlords) {
-      allLandlords = responseData.data.landlords;
-    } else if (Array.isArray(responseData.landlords)) {
-      allLandlords = responseData.landlords;
-    } else if (Array.isArray(responseData)) {
-      allLandlords = responseData;
-    } else {
-      console.warn(
-        "⚠️ Formato de respuesta de landlords API no reconocido:",
-        responseData
-      );
-      return [];
-    }
-
-    // Filtrar solo los landlords que necesitamos
-    const filteredLandlords = allLandlords.filter((landlord) =>
-      landlordIds.includes(landlord.id)
-    );
-
-    console.log(
-      `✅ Información de ${filteredLandlords.length} landlords obtenida exitosamente`
-    );
-    return filteredLandlords;
+    return landlords;
   } catch (error) {
-    console.error("❌ Error fetcheando información de landlords:", error);
+    console.error(
+      "❌ Error consultando información de landlords en BD:",
+      error
+    );
     return [];
   }
 };
@@ -89,6 +65,28 @@ export const fetchLandlordsInfo = async (
 export const fetchLandlordInfo = async (
   landlordId: number
 ): Promise<LandlordInfo | null> => {
-  const landlords = await fetchLandlordsInfo([landlordId]);
-  return landlords.length > 0 ? landlords[0] : null;
+  try {
+    console.log(`🔍 Buscando landlord con ID: ${landlordId}`);
+
+    const landlord = await prisma.landlord.findUnique({
+      where: {
+        id: landlordId,
+      },
+      select: {
+        id: true,
+        landlordName: true,
+      },
+    });
+
+    if (landlord) {
+      console.log(`✅ Landlord encontrado: ${landlord.landlordName}`);
+      return landlord;
+    } else {
+      console.warn(`⚠️ No se encontró landlord con ID: ${landlordId}`);
+      return null;
+    }
+  } catch (error) {
+    console.error("❌ Error consultando landlord en BD:", error);
+    return null;
+  }
 };
