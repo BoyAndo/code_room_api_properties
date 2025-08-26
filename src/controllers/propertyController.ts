@@ -22,6 +22,7 @@ import {
   getCurrentUser,
   isResourceOwner,
   LandlordPayload,
+  isLandlord,
 } from "../middlewares/auth.middleware";
 
 /**
@@ -49,6 +50,16 @@ export const createPropertyController = async (req: Request, res: Response) => {
         message: "No puedes crear propiedades para otro landlord",
         authenticatedUser: currentUser.id,
         requestedLandlordId: propertyData.landlordId,
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea un landlord
+    if (!isLandlord(currentUser)) {
+      res.status(403).json({
+        success: false,
+        message: "Solo los landlords pueden crear propiedades",
+        userRole: currentUser.role,
       });
       return;
     }

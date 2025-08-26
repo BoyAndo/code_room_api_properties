@@ -3,14 +3,17 @@ import {
   createPropertyController,
   getPropertyController,
   getPropertyWithLandlordController,
-  getPropertiesController,
   getPropertiesWithLandlordController,
   updatePropertyController,
   deletePropertyController,
 } from "../controllers/propertyController";
 import { getAmenitiesController } from "../controllers/amenity.controller";
 import { uploadPropertyFiles } from "../middlewares/multer";
-import { verifyToken, requireLandlord } from "../middlewares/auth.middleware";
+import {
+  verifyToken,
+  requireLandlord,
+  requireStudent,
+} from "../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -40,15 +43,12 @@ router.get("/amenities", getAmenitiesController);
  * @query comuna, region, propertyType, minRent, maxRent, minBedrooms, maxBedrooms, etc.
  * @access Public
  */
-router.get("/with-landlord", getPropertiesWithLandlordController);
-
-/**
- * @route GET /api/properties
- * @desc Obtener propiedades con filtros opcionales
- * @query comuna, region, propertyType, minRent, maxRent, minBedrooms, maxBedrooms, etc.
- * @access Public
- */
-router.get("/", getPropertiesController);
+router.get(
+  "/with-landlord",
+  verifyToken,
+  requireStudent,
+  getPropertiesWithLandlordController
+);
 
 /**
  * @route GET /api/properties/:id/with-landlord

@@ -3,7 +3,11 @@ dotenv.config({ quiet: true });
 import express from "express";
 import cookieParser from "cookie-parser";
 import propertyRoutes from "./routes/propertyRoutes";
-import { verifyToken, getCurrentUser } from "./middlewares/auth.middleware";
+import {
+  verifyToken,
+  getCurrentUser,
+  isLandlord,
+} from "./middlewares/auth.middleware";
 
 const app = express();
 
@@ -35,16 +39,31 @@ app.use("/api/properties", propertyRoutes);
 // Endpoint de prueba de autenticación
 app.get("/api/auth/test", verifyToken, (req, res) => {
   const currentUser = getCurrentUser(req);
+
+  // Usar type guard para acceder a propiedades específicas
+  let userInfo;
+  if (isLandlord(currentUser)) {
+    userInfo = {
+      id: currentUser.id,
+      name: currentUser.landlordName,
+      email: currentUser.landlordEmail,
+      role: currentUser.role,
+      rut: currentUser.landlordRut,
+    };
+  } else {
+    userInfo = {
+      id: currentUser.id,
+      name: currentUser.studentName,
+      email: currentUser.studentEmail,
+      role: currentUser.role,
+      rut: currentUser.studentRut,
+    };
+  }
+
   res.json({
     success: true,
     message: "Token válido - Usuario autenticado",
-    user: {
-      id: currentUser?.id,
-      name: currentUser?.landlordName,
-      email: currentUser?.landlordEmail,
-      role: currentUser?.role,
-      rut: currentUser?.landlordRut,
-    },
+    user: userInfo,
   });
 });
 
