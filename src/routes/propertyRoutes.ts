@@ -55,7 +55,12 @@ router.get(
  * @desc Obtener propiedad específica con información del landlord (OPTIMIZADO)
  * @access Public
  */
-router.get("/:id/with-landlord", getPropertyWithLandlordController);
+router.get(
+  "/:id/with-landlord",
+  verifyToken,
+  requireStudent,
+  getPropertyWithLandlordController
+);
 
 /**
  * @route GET /api/properties/:id
