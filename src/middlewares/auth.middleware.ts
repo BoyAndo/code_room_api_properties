@@ -18,6 +18,7 @@ export interface StudentPayload {
   studentRut: string;
   studentEmail: string;
   studentName: string;
+  studentCollege: string;
   role: "student";
   iat: number;
   exp: number;
