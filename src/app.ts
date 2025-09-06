@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config({ quiet: true });
 import express from "express";
+import cors from "cors";
 import cookieParser from "cookie-parser";
 import propertyRoutes from "./routes/propertyRoutes";
 import {
@@ -11,27 +12,28 @@ import {
 
 const app = express();
 
-// Middlewares globales
+// ✅ Configuración CORS
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000", // Frontend Next.js
+      "http://127.0.0.1:3000", // Frontend Next.js
+    ],
+    credentials: true, // Permitir cookies httpOnly
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Origin",
+    ], // ✅ Agregar Origin
+  })
+);
+
+// ✅ Middlewares básicos
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
-
-// CORS básico (ajustar según necesidades)
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    res.sendStatus(200);
-    return;
-  }
-
-  next();
-});
 
 // Rutas principales
 app.use("/api/properties", propertyRoutes);
