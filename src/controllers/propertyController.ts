@@ -105,13 +105,13 @@ export const createPropertyController = async (req: Request, res: Response) => {
       imagenes: propertyImageFiles.map((f) => f.originalname),
     });
 
-    // Validar cuenta de servicios contra datos de la propiedad
+    // Validar cuenta de servicios usando nombres directamente del formulario
     console.log("🧾 Validando cuenta de servicios...");
     const utilityBillValidation = await extractUtilityBillInfo(
       utilityBillFile.buffer,
       {
         propertyAddress: propertyData.address,
-        propertyComuna: propertyData.comuna,
+        propertyComuna: propertyData.comunaName, // ← Directamente del form, sin consultas
         landlordName: propertyData.landlordName,
       }
     );
@@ -144,7 +144,10 @@ export const createPropertyController = async (req: Request, res: Response) => {
           form: {
             landlordName: propertyData.landlordName,
             propertyAddress: propertyData.address,
-            propertyComuna: propertyData.comuna,
+            propertyComuna: propertyData.comunaName, // ← Directo del form
+            regionName: propertyData.regionName, // ← Directo del form
+            regionId: propertyData.regionId,
+            comunaId: propertyData.comunaId,
           },
           matchDetails: utilityBillValidation.matchDetails,
           confidence: utilityBillValidation.confidence,
