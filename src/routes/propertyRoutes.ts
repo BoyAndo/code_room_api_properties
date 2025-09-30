@@ -4,6 +4,7 @@ import {
   getPropertyController,
   getPropertyWithLandlordController,
   getPropertiesWithLandlordController,
+  getPropertiesByLandlordController,
   updatePropertyController,
   deletePropertyController,
 } from "../controllers/propertyController";
@@ -36,6 +37,18 @@ router.post(
  * @access Public
  */
 router.get("/amenities", getAmenitiesController);
+
+/**
+ * @route GET /api/properties/my-properties
+ * @desc Obtener todas las propiedades del landlord autenticado
+ * @access Private (solo landlords autenticados)
+ */
+router.get(
+  "/my-properties",
+  verifyToken,
+  requireLandlord,
+  getPropertiesByLandlordController
+);
 
 /**
  * @route GET /api/properties/with-landlord

@@ -10,6 +10,7 @@ import {
   getPropertyByIdWithLandlord,
   getProperties,
   getPropertiesWithLandlordInfo,
+  getPropertiesByLandlordId,
   updateProperty,
   deleteProperty,
 } from "../services/property/property.service";
@@ -638,6 +639,46 @@ export const getPropertiesWithLandlordController = async (
     });
   } catch (error) {
     console.error("❌ Error obteniendo propiedades con landlords:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor",
+      error: error instanceof Error ? error.message : "Error desconocido",
+    });
+  }
+};
+
+/**
+ * Obtener todas las propiedades de un landlord específico
+ */
+export const getPropertiesByLandlordController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    // Obtener información del usuario autenticado
+    const currentUser = getCurrentUser(req);
+    if (!currentUser || !isLandlord(currentUser)) {
+      res.status(401).json({
+        success: false,
+        message: "Usuario no autenticado o no es landlord",
+      });
+      return;
+    }
+
+    // El landlord solo puede consultar sus propias propiedades
+    const landlordId = currentUser.id;
+
+    const properties = await getPropertiesByLandlordId(landlordId);
+
+    res.status(200).json({
+      success: true,
+      data: properties,
+      total: properties.length,
+      message: `${properties.length} propiedades encontradas`,
+    });
+  } catch (error) {
+    console.error("❌ Error obteniendo propiedades del landlord:", error);
 
     res.status(500).json({
       success: false,

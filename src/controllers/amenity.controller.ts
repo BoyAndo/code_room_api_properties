@@ -8,8 +8,6 @@ const prisma = new PrismaClient();
  */
 export const getAmenitiesController = async (req: Request, res: Response) => {
   try {
-    console.log("🏷️ Obteniendo lista de amenities disponibles...");
-
     const amenities = await prisma.amenity.findMany({
       orderBy: [{ category: "asc" }, { name: "asc" }],
       select: {
@@ -32,12 +30,6 @@ export const getAmenitiesController = async (req: Request, res: Response) => {
         return acc;
       },
       {} as Record<string, typeof amenities>
-    );
-
-    console.log(
-      `✅ Obtenidos ${amenities.length} amenities en ${
-        Object.keys(groupedAmenities).length
-      } categorías`
     );
 
     res.json({
