@@ -48,8 +48,8 @@ export const createProperty = async (
         title: propertyData.title,
         description: propertyData.description,
         address: propertyData.address,
-        comuna: propertyData.comuna,
-        region: propertyData.region,
+        regionId: propertyData.regionId,
+        comunaId: propertyData.comunaId,
         zipCode: propertyData.zipCode,
         propertyType: propertyData.propertyType,
         bedrooms: propertyData.bedrooms,
@@ -591,6 +591,49 @@ export const validateUtilityBill = async (propertyId: number) => {
     console.error("❌ Error validando factura de servicios:", error);
     throw new Error(
       `Error validando factura de servicios: ${
+        error instanceof Error ? error.message : "Error desconocido"
+      }`
+    );
+  }
+};
+
+/**
+ * Obtiene todas las propiedades de un landlord específico
+ */
+export const getPropertiesByLandlordId = async (landlordId: number) => {
+  try {
+    const properties = await prisma.property.findMany({
+      where: {
+        landlordId: landlordId,
+      },
+      include: {
+        propertyImages: true,
+        propertyAmenities: {
+          include: {
+            amenity: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc", // Ordenar por más recientes primero
+      },
+    });
+
+    // Transformar los datos para que sean consistentes con el formato esperado
+    const transformedProperties = properties.map((property) => ({
+      ...property,
+      amenities: property.propertyAmenities.map((pa: any) => pa.amenity),
+      propertyAmenities: undefined, // Remover el campo original
+    }));
+
+    return transformedProperties;
+  } catch (error) {
+    console.error(
+      `❌ Error obteniendo propiedades del landlord ${landlordId}:`,
+      error
+    );
+    throw new Error(
+      `Error obteniendo propiedades del landlord: ${
         error instanceof Error ? error.message : "Error desconocido"
       }`
     );

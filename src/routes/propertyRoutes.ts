@@ -4,6 +4,7 @@ import {
   getPropertyController,
   getPropertyWithLandlordController,
   getPropertiesWithLandlordController,
+  getPropertiesByLandlordController,
   updatePropertyController,
   deletePropertyController,
 } from "../controllers/propertyController";
@@ -38,6 +39,18 @@ router.post(
 router.get("/amenities", getAmenitiesController);
 
 /**
+ * @route GET /api/properties/my-properties
+ * @desc Obtener todas las propiedades del landlord autenticado
+ * @access Private (solo landlords autenticados)
+ */
+router.get(
+  "/my-properties",
+  verifyToken,
+  requireLandlord,
+  getPropertiesByLandlordController
+);
+
+/**
  * @route GET /api/properties/with-landlord
  * @desc Obtener propiedades con información del landlord (OPTIMIZADO)
  * @query comuna, region, propertyType, minRent, maxRent, minBedrooms, maxBedrooms, etc.
@@ -55,7 +68,12 @@ router.get(
  * @desc Obtener propiedad específica con información del landlord (OPTIMIZADO)
  * @access Public
  */
-router.get("/:id/with-landlord", getPropertyWithLandlordController);
+router.get(
+  "/:id/with-landlord",
+  verifyToken,
+  requireStudent,
+  getPropertyWithLandlordController
+);
 
 /**
  * @route GET /api/properties/:id

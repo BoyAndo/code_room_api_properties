@@ -24,8 +24,32 @@ export const createPropertySchema = z.object({
     .max(100, "El título no puede exceder 100 caracteres"),
   description: z.string().optional(),
   address: z.string().min(10, "La dirección debe tener al menos 10 caracteres"),
-  comuna: z.string().min(2, "La comuna debe tener al menos 2 caracteres"),
-  region: z.string().min(2, "La región debe tener al menos 2 caracteres"),
+
+  // Nombres para validación con Tesseract
+  regionName: z.string().min(2, "El nombre de la región es requerido"),
+  comunaName: z.string().min(2, "El nombre de la comuna es requerido"),
+
+  // IDs para normalización en base de datos
+  regionId: z.union([
+    z.number().int().positive(),
+    z.string().transform((val) => {
+      const num = parseInt(val, 10);
+      if (isNaN(num) || num <= 0) {
+        throw new Error("El ID de la región debe ser un número positivo");
+      }
+      return num;
+    }),
+  ]),
+  comunaId: z.union([
+    z.number().int().positive(),
+    z.string().transform((val) => {
+      const num = parseInt(val, 10);
+      if (isNaN(num) || num <= 0) {
+        throw new Error("El ID de la comuna debe ser un número positivo");
+      }
+      return num;
+    }),
+  ]),
   zipCode: z.string().optional(),
   propertyType: PropertyTypeEnum,
   bedrooms: z.union([
@@ -159,8 +183,38 @@ export const updatePropertySchema = z.object({
   title: z.string().min(5).max(100).optional(),
   description: z.string().optional(),
   address: z.string().min(10).optional(),
-  comuna: z.string().min(2).optional(),
-  region: z.string().min(2).optional(),
+
+  // Nombres para validación con Tesseract (opcionales en actualización)
+  regionName: z.string().min(2).optional(),
+  comunaName: z.string().min(2).optional(),
+
+  // IDs para normalización en base de datos
+  regionId: z
+    .union([
+      z.number().int().positive(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseInt(val, 10);
+        if (isNaN(num) || num <= 0) {
+          throw new Error("El ID de la región debe ser un número positivo");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  comunaId: z
+    .union([
+      z.number().int().positive(),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseInt(val, 10);
+        if (isNaN(num) || num <= 0) {
+          throw new Error("El ID de la comuna debe ser un número positivo");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
   zipCode: z.string().optional(),
   propertyType: PropertyTypeEnum.optional(),
   bedrooms: z

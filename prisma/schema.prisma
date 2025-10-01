@@ -27,8 +27,17 @@ model Student {
   studentCollege        String
   studentCertificateUrl String
   role                  String
+  regionId              Int?
+  comunaId              Int?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  
+  // Relaciones
+  region                Region?  @relation("StudentRegion", fields: [regionId], references: [id])
+  comuna                Comuna?  @relation("StudentComuna", fields: [comunaId], references: [id])
+  
+  @@index([regionId])
+  @@index([comunaId])
 }
 
 model Landlord {
@@ -39,16 +48,54 @@ model Landlord {
   password          String
   landlordCarnetUrl String
   role              String   @default("landlord")
+  regionId          Int?
+  comunaId          Int?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
-  // Relación con propiedades
+  // Relaciones
   properties        Property[]
+  region            Region?  @relation("LandlordRegion", fields: [regionId], references: [id])
+  comuna            Comuna?  @relation("LandlordComuna", fields: [comunaId], references: [id])
+  
+  @@index([regionId])
+  @@index([comunaId])
 }
 
 // ============================================
 // MODELOS DE PROPIEDADES (api_properties)
 // ============================================
+
+// Modelos de ubicación (Region y Comuna)
+model Region {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(10)
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relaciones
+  comunas   Comuna[]
+  students  Student[] @relation("StudentRegion")
+  landlords Landlord[] @relation("LandlordRegion")
+  properties Property[] @relation("PropertyRegion")
+}
+
+model Comuna {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  regionId  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relaciones
+  region     Region     @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  students   Student[] @relation("StudentComuna")
+  landlords  Landlord[] @relation("LandlordComuna")
+  properties Property[] @relation("PropertyComuna")
+  
+  @@index([regionId])
+}
 
 // Enum para tipos de propiedad
 enum PropertyType {
@@ -63,8 +110,8 @@ model Property {
   title                 String
   description           String?  @db.Text
   address               String
-  comuna                String   // Antes era "city"
-  region                String   // Antes era "state"
+  regionId              Int
+  comunaId              Int
   zipCode               String?
   propertyType          PropertyType
   bedrooms              Int
@@ -82,10 +129,14 @@ model Property {
   
   // Relaciones
   landlord              Landlord          @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  region                Region            @relation("PropertyRegion", fields: [regionId], references: [id])
+  comuna                Comuna            @relation("PropertyComuna", fields: [comunaId], references: [id])
   propertyImages        PropertyImage[]
   propertyAmenities     PropertyAmenity[]
   
   @@index([landlordId])
+  @@index([regionId])
+  @@index([comunaId])
 }
 
 model PropertyImage {

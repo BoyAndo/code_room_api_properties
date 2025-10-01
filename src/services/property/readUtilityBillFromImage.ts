@@ -82,13 +82,19 @@ export const readUtilityBillFromImage = async (
       "📸 Preprocesamiento completado - Probando múltiples versiones"
     );
 
+    // Variables para controlar logs únicos
+    let enhancedStarted = false;
+    let contrastStarted = false;
+    let binaryStarted = false;
+
     // Intentar OCR con múltiples versiones de la imagen
     const ocrResults = await Promise.all([
       // Versión original mejorada
       Tesseract.recognize(enhancedImage, "spa", {
         logger: (m) => {
-          if (m.status === "recognizing text") {
-            console.log(`OCR Enhanced: ${Math.round(m.progress * 100)}%`);
+          if (m.status === "recognizing text" && !enhancedStarted) {
+            console.log("🔍 Escaneando versión mejorada...");
+            enhancedStarted = true;
           }
         },
       }),
@@ -96,8 +102,9 @@ export const readUtilityBillFromImage = async (
       // Versión con alto contraste
       Tesseract.recognize(contrastImage, "spa", {
         logger: (m) => {
-          if (m.status === "recognizing text") {
-            console.log(`OCR Contrast: ${Math.round(m.progress * 100)}%`);
+          if (m.status === "recognizing text" && !contrastStarted) {
+            console.log("🔍 Escaneando versión con contraste...");
+            contrastStarted = true;
           }
         },
       }),
@@ -105,8 +112,9 @@ export const readUtilityBillFromImage = async (
       // Versión binarizada
       Tesseract.recognize(binaryImage, "spa", {
         logger: (m) => {
-          if (m.status === "recognizing text") {
-            console.log(`OCR Binary: ${Math.round(m.progress * 100)}%`);
+          if (m.status === "recognizing text" && !binaryStarted) {
+            console.log("🔍 Escaneando versión binarizada...");
+            binaryStarted = true;
           }
         },
       }),
@@ -117,7 +125,7 @@ export const readUtilityBillFromImage = async (
     let bestScore =
       bestResult.data.confidence * (bestResult.data.text.length / 1000);
 
-    console.log("📊 Comparando resultados OCR:");
+    console.log("📊 Escaneo completado - Comparando resultados:");
     ocrResults.forEach((result, index) => {
       const versions = ["Enhanced", "Contrast", "Binary"];
       const score = result.data.confidence * (result.data.text.length / 1000);
