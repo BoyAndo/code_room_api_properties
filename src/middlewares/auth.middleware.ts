@@ -78,8 +78,10 @@ export const verifyToken = (
     if (error instanceof jwt.TokenExpiredError) {
       return res.status(401).json({
         success: false,
-        message: "Token expirado",
+        message:
+          "Token expirado. Por favor, utiliza el refresh token para obtener uno nuevo.",
         error: "TokenExpiredError",
+        shouldRefresh: true, // Flag para indicar al frontend que debe refrescar
       });
     }
 
