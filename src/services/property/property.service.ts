@@ -50,7 +50,6 @@ export const createProperty = async (
         address: propertyData.address,
         regionId: propertyData.regionId,
         comunaId: propertyData.comunaId,
-        zipCode: propertyData.zipCode,
         propertyType: propertyData.propertyType,
         bedrooms: propertyData.bedrooms,
         bathrooms: propertyData.bathrooms,
@@ -58,9 +57,6 @@ export const createProperty = async (
         monthlyRent: propertyData.monthlyRent,
         utilityBillUrl,
         utilityBillValidated,
-        rules: propertyData.rules,
-        latitude: propertyData.latitude,
-        longitude: propertyData.longitude,
         // Crear las imágenes relacionadas
         propertyImages: {
           create: images.map((imageUrl, index) => ({
@@ -438,9 +434,18 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
     console.log("🔄 Iniciando actualización de propiedad...");
     console.log("📋 Datos recibidos:", updateData);
 
-    const { id, images, replaceImages, amenities, ...data } = updateData;
+    const {
+      id,
+      images,
+      replaceImages,
+      amenities,
+      landlordId,
+      landlordName,
+      ...data
+    } = updateData;
 
-    // Preparar datos para actualización
+    // Preparar datos para actualización (sin landlordId ni landlordName)
+    // El landlord no se puede cambiar en una actualización
     const updatePayload: any = { ...data };
 
     console.log("📤 Payload que se enviará a Prisma:", updatePayload);

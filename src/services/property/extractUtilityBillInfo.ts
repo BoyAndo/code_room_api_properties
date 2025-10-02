@@ -12,6 +12,7 @@ interface UtilityBillValidationResult {
     addressMatch?: string;
     comunaMatch?: string;
   };
+  errorMessages?: string[]; // Mensajes de error detallados
 }
 
 /**

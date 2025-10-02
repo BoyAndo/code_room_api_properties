@@ -14,6 +14,7 @@ interface UtilityBillValidationResult {
     addressMatch?: string;
     comunaMatch?: string;
   };
+  errorMessages?: string[]; // Mensajes de error detallados para cada campo
 }
 
 /**
@@ -200,27 +201,65 @@ const validateUtilityBillInfo = (
   // Buscar coincidencias de la comuna
   const comunaFound = findComunaInText(normalizedExtracted, normalizedComuna);
 
-  // Calcular confianza basada en las coincidencias (ahora con 3 campos)
+  // MODO ESTRICTO: Requiere los 3 campos obligatorios
   let confidence = 0;
   if (nameFound.found) confidence += 35; // 35% por nombre
   if (addressFound.found) confidence += 40; // 40% por dirección
   if (comunaFound.found) confidence += 25; // 25% por comuna
 
-  // La propiedad es válida si encuentra al menos 2 de los 3 campos
+  // VALIDACIÓN ESTRICTA: Los 3 campos son obligatorios
+  const isValid = nameFound.found && addressFound.found && comunaFound.found;
+
   const foundCount = [
     nameFound.found,
     addressFound.found,
     comunaFound.found,
   ].filter(Boolean).length;
-  const isValid = foundCount >= 2;
 
-  console.log("📊 Resultado de validación:", {
+  // Generar mensajes de error detallados para cada campo faltante
+  const errorMessages: string[] = [];
+
+  if (!nameFound.found) {
+    errorMessages.push(
+      "El nombre del propietario no se distingue claramente en la cuenta de servicios. Asegúrate de que el nombre esté visible y legible en el documento."
+    );
+  }
+
+  if (!addressFound.found) {
+    // Determinar qué faltó específicamente en la dirección
+    const addressWords = normalizedAddress
+      .split(/\s+/)
+      .filter((w) => w.length > 1);
+    const streetNumbers = addressWords.filter((w) => /^\d+$/.test(w));
+    const hasNumbers = streetNumbers.length > 0;
+
+    if (hasNumbers) {
+      errorMessages.push(
+        "El número de calle no fue encontrado en la cuenta de servicios. Verifica que el número de la dirección sea visible y coincida exactamente con la dirección ingresada."
+      );
+    } else {
+      errorMessages.push(
+        "El nombre de la calle no se distingue en la cuenta de servicios. Asegúrate de que la dirección completa esté visible y sea legible en el documento."
+      );
+    }
+  }
+
+  if (!comunaFound.found) {
+    errorMessages.push(
+      "La comuna no fue encontrada en la cuenta de servicios. Verifica que la comuna esté visible y coincida con la comuna ingresada."
+    );
+  }
+
+  console.log("📊 Resultado de validación (MODO ESTRICTO):", {
     nombreEncontrado: nameFound.found ? "✅ Sí" : "❌ No",
     direccionEncontrada: addressFound.found ? "✅ Sí" : "❌ No",
     comunaEncontrada: comunaFound.found ? "✅ Sí" : "❌ No",
     camposEncontrados: `${foundCount}/3`,
     confianza: `${confidence}%`,
-    esValido: isValid ? "✅ Válido" : "❌ No válido",
+    esValido: isValid
+      ? "✅ Válido (3/3 campos)"
+      : "❌ No válido (requiere 3/3 campos)",
+    erroresDetallados: errorMessages.length > 0 ? errorMessages : "Ninguno",
   });
 
   return {
@@ -235,6 +274,7 @@ const validateUtilityBillInfo = (
       addressMatch: addressFound.match,
       comunaMatch: comunaFound.match,
     },
+    errorMessages: errorMessages.length > 0 ? errorMessages : undefined,
   };
 };
 
@@ -307,13 +347,14 @@ const findNameInText = (
 };
 
 /**
- * Busca la dirección en el texto extraído de la cuenta (incluyendo números)
+ * Busca la dirección en el texto extraído de la cuenta (VALIDACIÓN ESTRICTA)
+ * Requiere obligatoriamente: número de calle + nombre de calle
  */
 const findAddressInText = (
   extractedText: string,
   targetAddress: string
 ): { found: boolean; match?: string } => {
-  console.log("🔍 Buscando dirección en texto extraído...");
+  console.log("🔍 Buscando dirección en texto extraído (MODO ESTRICTO)...");
 
   // Normalizar y limpiar la dirección objetivo
   const cleanTargetAddress = targetAddress
@@ -322,107 +363,127 @@ const findAddressInText = (
     .replace(/\s+/g, " ")
     .trim();
 
-  // Dividir en palabras significativas (AHORA INCLUYE NÚMEROS)
+  // Dividir en palabras y separar números de palabras
   const addressWords = cleanTargetAddress.split(/\s+/).filter((word) => {
-    // Incluir números (especialmente direcciones), calles importantes y palabras largas
     return (
       word.length > 1 && // Palabras de más de 1 carácter
-      !/^(de|del|la|las|el|los|con|sin|por|para|en|y)$/.test(word) // Excluir solo preposiciones comunes
+      !/^(de|del|la|las|el|los|con|sin|por|para|en|y)$/.test(word) // Excluir preposiciones
     );
   });
 
-  console.log(
-    "📍 Palabras clave de dirección (incluyendo números):",
-    addressWords
-  );
+  // Separar números y palabras de calle
+  const streetNumbers = addressWords.filter((word) => /^\d+$/.test(word));
+  const streetWords = addressWords.filter((word) => !/^\d+$/.test(word));
 
-  // Buscar coincidencias flexibles
-  let foundWords = 0;
-  let foundMatches: string[] = [];
+  console.log("📍 Componentes de dirección:");
+  console.log("  🔢 Números de calle:", streetNumbers);
+  console.log("  📝 Palabras de calle:", streetWords);
+
   const normalizedExtracted = extractedText.toLowerCase();
 
-  for (const word of addressWords) {
-    let wordFound = false;
+  // VALIDACIÓN ESTRICTA: Verificar números de calle
+  let numbersFound = 0;
+  let numberMatches: string[] = [];
 
-    // Para números, buscar coincidencias exactas (más estricto)
-    if (/^\d+$/.test(word)) {
-      if (normalizedExtracted.includes(word)) {
-        foundWords += 1.2; // Dar más peso a los números de dirección
-        foundMatches.push(word);
-        wordFound = true;
-        console.log(`✅ Número de dirección encontrado: "${word}"`);
-      }
+  for (const number of streetNumbers) {
+    if (normalizedExtracted.includes(number)) {
+      numbersFound++;
+      numberMatches.push(number);
+      console.log(`✅ NÚMERO DE CALLE ENCONTRADO: "${number}"`);
     } else {
-      // Para palabras, buscar coincidencias exactas
-      if (normalizedExtracted.includes(word)) {
-        foundWords++;
-        foundMatches.push(word);
-        wordFound = true;
-        console.log(`✅ Palabra encontrada: "${word}"`);
+      console.log(`❌ NÚMERO DE CALLE NO ENCONTRADO: "${number}"`);
+    }
+  }
+
+  // VALIDACIÓN ESTRICTA: Verificar palabras del nombre de calle
+  let streetWordsFound = 0;
+  let streetWordMatches: string[] = [];
+
+  for (const word of streetWords) {
+    // Buscar coincidencia exacta
+    if (normalizedExtracted.includes(word)) {
+      streetWordsFound++;
+      streetWordMatches.push(word);
+      console.log(`✅ NOMBRE DE CALLE ENCONTRADO: "${word}"`);
+    } else {
+      // Permitir coincidencias parciales SOLO para abreviaciones comunes de calles
+      const partialMatches = findPartialMatches(word, normalizedExtracted);
+      if (partialMatches.length > 0) {
+        streetWordsFound += 0.5; // Peso reducido para parciales
+        streetWordMatches.push(`${word}~${partialMatches[0]}`);
+        console.log(
+          `🔍 Coincidencia parcial (calle): "${word}" ≈ "${partialMatches[0]}"`
+        );
       } else {
-        // Buscar coincidencias parciales (útil para abreviaciones)
-        const partialMatches = findPartialMatches(word, normalizedExtracted);
-        if (partialMatches.length > 0) {
-          foundWords += 0.7; // Dar menos peso a coincidencias parciales
-          foundMatches.push(`${word}~${partialMatches[0]}`);
-          wordFound = true;
-          console.log(
-            `🔍 Coincidencia parcial: "${word}" ≈ "${partialMatches[0]}"`
-          );
-        }
+        console.log(`❌ NOMBRE DE CALLE NO ENCONTRADO: "${word}"`);
       }
     }
-
-    if (!wordFound) {
-      console.log(`❌ No encontrada: "${word}"`);
-    }
   }
 
-  // Algoritmo de scoring mejorado
-  const wordsCount = addressWords.length;
-  const foundRatio = foundWords / wordsCount;
+  // CRITERIO ESTRICTO:
+  // 1. DEBE encontrar AL MENOS UN número de calle (si hay números en la dirección)
+  // 2. DEBE encontrar AL MENOS UNA palabra significativa del nombre de calle
+  const hasNumbersInAddress = streetNumbers.length > 0;
+  const hasStreetWords = streetWords.length > 0;
 
-  // Requerimientos variables según la longitud de la dirección
-  let requiredThreshold = 0.6; // 60% por defecto
+  let isValid = false;
+  let validationReason = "";
 
-  if (wordsCount <= 2) {
-    requiredThreshold = 1.0; // 100% para direcciones muy cortas
-  } else if (wordsCount <= 4) {
-    requiredThreshold = 0.75; // 75% para direcciones cortas
-  } else if (wordsCount >= 6) {
-    requiredThreshold = 0.5; // 50% para direcciones largas
+  if (hasNumbersInAddress && hasStreetWords) {
+    // Caso normal: tiene números y palabras
+    // REQUIERE: Al menos 1 número Y al menos 1 palabra de calle
+    const hasRequiredNumber = numbersFound >= 1;
+    const hasRequiredStreetName = streetWordsFound >= 1;
+
+    isValid = hasRequiredNumber && hasRequiredStreetName;
+    validationReason = hasRequiredNumber
+      ? hasRequiredStreetName
+        ? "✅ Número y nombre de calle encontrados"
+        : "❌ Falta nombre de calle"
+      : "❌ Falta número de calle";
+  } else if (hasNumbersInAddress && !hasStreetWords) {
+    // Solo tiene números (ej: "123")
+    // REQUIERE: Todos los números
+    isValid = numbersFound === streetNumbers.length;
+    validationReason = isValid
+      ? "✅ Número encontrado (sin nombre de calle en dirección)"
+      : "❌ Número de calle no encontrado";
+  } else if (!hasNumbersInAddress && hasStreetWords) {
+    // Solo tiene palabras (ej: "Calle Principal")
+    // REQUIERE: Al menos el 70% de las palabras
+    const requiredWords = Math.max(1, Math.ceil(streetWords.length * 0.7));
+    isValid = streetWordsFound >= requiredWords;
+    validationReason = isValid
+      ? "✅ Nombre de calle encontrado (sin número en dirección)"
+      : "❌ Nombre de calle insuficiente";
   }
 
-  // Requerir al menos 2 palabras encontradas o 1 si incluye número
-  const hasNumber = addressWords.some((word) => /^\d+$/.test(word));
-  const minWordsRequired = hasNumber ? 1.5 : 2;
+  const allMatches = [...numberMatches, ...streetWordMatches];
 
-  const found =
-    foundRatio >= requiredThreshold && foundWords >= minWordsRequired;
-
-  console.log("📊 Análisis de dirección:", {
-    totalPalabras: wordsCount,
-    palabrasEncontradas: foundWords,
-    ratio: `${(foundRatio * 100).toFixed(1)}%`,
-    requerido: `${(requiredThreshold * 100).toFixed(1)}%`,
-    tieneNumero: hasNumber ? "✅ Sí" : "❌ No",
-    resultado: found ? "✅ VÁLIDA" : "❌ NO VÁLIDA",
+  console.log("📊 Análisis ESTRICTO de dirección:", {
+    numerosEnDireccion: streetNumbers.length,
+    numerosEncontrados: numbersFound,
+    palabrasEnDireccion: streetWords.length,
+    palabrasEncontradas: streetWordsFound.toFixed(1),
+    validacion: validationReason,
+    resultado: isValid ? "✅ VÁLIDA" : "❌ NO VÁLIDA",
   });
 
   return {
-    found,
-    match: found ? foundMatches.join(" ") : undefined,
+    found: isValid,
+    match: isValid ? allMatches.join(" ") : undefined,
   };
 };
 
 /**
- * Busca la comuna en el texto extraído de la cuenta
+ * Busca la comuna en el texto extraído de la cuenta (MODO FLEXIBLE)
+ * Acepta abreviaciones y coincidencias parciales comunes
  */
 const findComunaInText = (
   extractedText: string,
   targetComuna: string
 ): { found: boolean; match?: string } => {
-  console.log("🏘️ Buscando comuna en texto extraído...");
+  console.log("🏘️ Buscando comuna en texto extraído (MODO FLEXIBLE)...");
 
   // Normalizar y limpiar la comuna objetivo
   const cleanTargetComuna = targetComuna
@@ -447,33 +508,46 @@ const findComunaInText = (
     if (normalizedExtracted.includes(word)) {
       foundWords++;
       foundMatches.push(word);
-      console.log(`✅ Comuna encontrada: "${word}"`);
+      console.log(`✅ Comuna encontrada (exacta): "${word}"`);
     } else {
-      // Buscar coincidencias parciales para abreviaciones de comunas
+      // Para comunas, ser MUY flexible con coincidencias parciales
+      // Ejemplo: "Las Condes" puede aparecer como "L. Condes", "Condes", etc.
       const partialMatches = findPartialMatches(word, normalizedExtracted);
       if (partialMatches.length > 0) {
-        foundWords += 0.8; // Dar buen peso a coincidencias parciales para comunas
+        foundWords += 0.9; // Alto peso para coincidencias parciales en comunas
         foundMatches.push(`${word}~${partialMatches[0]}`);
-        console.log(`🔍 Comuna parcial: "${word}" ≈ "${partialMatches[0]}"`);
+        console.log(
+          `✅ Comuna encontrada (parcial): "${word}" ≈ "${partialMatches[0]}"`
+        );
       } else {
-        console.log(`❌ Comuna no encontrada: "${word}"`);
+        console.log(`⚠️ Comuna no encontrada: "${word}" (no es crítico)`);
       }
     }
   }
 
-  // Para comunas, ser más flexible ya que pueden aparecer abreviadas
+  // VALIDACIÓN FLEXIBLE para comunas:
+  // - Comunas de 1 palabra: requiere al menos 80% de coincidencia
+  // - Comunas de 2+ palabras: requiere al menos 50% de coincidencia
   const wordsCount = comunaWords.length;
   const foundRatio = foundWords / wordsCount;
 
-  // Umbral más bajo para comunas ya que suelen aparecer abreviadas
-  const requiredThreshold = wordsCount === 1 ? 1.0 : 0.6;
-  const found = foundRatio >= requiredThreshold && foundWords >= 0.8;
+  let requiredThreshold: number;
+  if (wordsCount === 1) {
+    requiredThreshold = 0.8; // 80% para comunas de una palabra (ej: "Providencia")
+  } else {
+    requiredThreshold = 0.5; // 50% para comunas compuestas (ej: "Las Condes" puede ser "Condes")
+  }
 
-  console.log("📊 Análisis de comuna:", {
+  // Permitir que pase con menos palabras encontradas si es comuna compuesta
+  const minWordsFound = wordsCount === 1 ? 0.8 : 0.5;
+  const found = foundRatio >= requiredThreshold && foundWords >= minWordsFound;
+
+  console.log("📊 Análisis FLEXIBLE de comuna:", {
     totalPalabras: wordsCount,
-    palabrasEncontradas: foundWords,
+    palabrasEncontradas: foundWords.toFixed(1),
     ratio: `${(foundRatio * 100).toFixed(1)}%`,
     requerido: `${(requiredThreshold * 100).toFixed(1)}%`,
+    nota: "Validación flexible - acepta abreviaciones comunes",
     resultado: found ? "✅ VÁLIDA" : "❌ NO VÁLIDA",
   });
 

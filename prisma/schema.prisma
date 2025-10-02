@@ -15,7 +15,7 @@ datasource db {
 }
 
 // ============================================
-// MODELOS DE USUARIOS (de api_register)
+// MODELOS DE USUARIOS
 // ============================================
 
 model Student {
@@ -27,20 +27,20 @@ model Student {
   studentCollege        String
   studentCertificateUrl String
   role                  String
-  regionId              Int?
-  comunaId              Int?
+  comunaId              Int      // Foreign key a Comuna (obligatorio)
+  regionId              Int      // Foreign key a Region (obligatorio)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   
-  // Relaciones
-  region                Region?  @relation("StudentRegion", fields: [regionId], references: [id])
-  comuna                Comuna?  @relation("StudentComuna", fields: [comunaId], references: [id])
+  // Relaciones de ubicación
+  comuna                Comuna   @relation(fields: [comunaId], references: [id], onDelete: Restrict, map: "Student_comuna_fkey")
+  region                Region   @relation(fields: [regionId], references: [id], onDelete: Restrict, map: "Student_region_fkey")
   
   // Relación con refresh tokens
   refreshTokens         RefreshToken[]
   
-  @@index([regionId])
   @@index([comunaId])
+  @@index([regionId])
 }
 
 model Landlord {
@@ -51,57 +51,28 @@ model Landlord {
   password          String
   landlordCarnetUrl String
   role              String   @default("landlord")
-  regionId          Int?
-  comunaId          Int?
+  comunaId          Int      // Foreign key a Comuna (obligatorio)
+  regionId          Int      // Foreign key a Region (obligatorio)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
-  // Relaciones
+  // Relación con propiedades
   properties        Property[]
-  region            Region?  @relation("LandlordRegion", fields: [regionId], references: [id])
-  comuna            Comuna?  @relation("LandlordComuna", fields: [comunaId], references: [id])
+  
+  // Relaciones de ubicación
+  comuna            Comuna   @relation(fields: [comunaId], references: [id], onDelete: Restrict, map: "Landlord_comuna_fkey")
+  region            Region   @relation(fields: [regionId], references: [id], onDelete: Restrict, map: "Landlord_region_fkey")
   
   // Relación con refresh tokens
   refreshTokens     RefreshToken[]
   
-  @@index([regionId])
   @@index([comunaId])
-}
-
-// ============================================
-// MODELOS DE PROPIEDADES (api_properties)
-// ============================================
-
-// Modelos de ubicación (Region y Comuna)
-model Region {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique @db.VarChar(10)
-  name      String   @db.VarChar(100)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relaciones
-  comunas   Comuna[]
-  students  Student[] @relation("StudentRegion")
-  landlords Landlord[] @relation("LandlordRegion")
-  properties Property[] @relation("PropertyRegion")
-}
-
-model Comuna {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(100)
-  regionId  Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relaciones
-  region     Region     @relation(fields: [regionId], references: [id], onDelete: Cascade)
-  students   Student[] @relation("StudentComuna")
-  landlords  Landlord[] @relation("LandlordComuna")
-  properties Property[] @relation("PropertyComuna")
-  
   @@index([regionId])
 }
+
+// ============================================
+// MODELOS DE PROPIEDADES (para referencia)
+// ============================================
 
 // Enum para tipos de propiedad
 enum PropertyType {
@@ -112,37 +83,33 @@ enum PropertyType {
 
 model Property {
   id                    Int      @id @default(autoincrement())
-  landlordId            Int      // Foreign key al landlord (ahora en la misma BD)
+  landlordId            Int      // Foreign key al landlord
   title                 String
   description           String?  @db.Text
   address               String
-  regionId              Int
-  comunaId              Int
-  zipCode               String?
+  comunaId              Int      // Foreign key a Comuna
+  regionId              Int      // Foreign key a Region
   propertyType          PropertyType
   bedrooms              Int
   bathrooms             Int
   squareMeters          Float?
   monthlyRent           Decimal  @db.Decimal(10, 2)
   isAvailable          Boolean  @default(true)
-  utilityBillUrl        String   // URL de la cuenta de servicios validada
+  utilityBillUrl        String
   utilityBillValidated  Boolean  @default(false)
-  rules                 String?  @db.Text
-  latitude              Decimal? @db.Decimal(10, 8)
-  longitude             Decimal? @db.Decimal(11, 8)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   
   // Relaciones
   landlord              Landlord          @relation(fields: [landlordId], references: [id], onDelete: Cascade)
-  region                Region            @relation("PropertyRegion", fields: [regionId], references: [id])
-  comuna                Comuna            @relation("PropertyComuna", fields: [comunaId], references: [id])
+  comuna                Comuna            @relation(fields: [comunaId], references: [id], onDelete: Restrict, map: "Property_comuna_fkey")
+  region                Region            @relation(fields: [regionId], references: [id], onDelete: Restrict, map: "Property_region_fkey")
   propertyImages        PropertyImage[]
   propertyAmenities     PropertyAmenity[]
   
   @@index([landlordId])
-  @@index([regionId])
   @@index([comunaId])
+  @@index([regionId])
 }
 
 model PropertyImage {
@@ -155,43 +122,74 @@ model PropertyImage {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
-  // Relación con propiedad
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  // Índices para performance
+  
   @@index([propertyId, displayOrder])
   @@index([propertyId, isPrimary])
 }
 
-// Modelo para amenities (características de la propiedad)
 model Amenity {
   id                Int                @id @default(autoincrement())
   name              String             @unique @db.VarChar(100)
   description       String?            @db.Text
-  icon              String?            @db.VarChar(50) // Para iconos en el frontend
-  category          String?            @db.VarChar(50) // "utilities", "recreation", "security", etc.
+  icon              String?            @db.VarChar(50)
+  category          String?            @db.VarChar(50)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   
-  // Relación con propiedades
   propertyAmenities PropertyAmenity[]
 }
 
-// Tabla pivot/join para la relación many-to-many entre Property y Amenity
 model PropertyAmenity {
   id         Int      @id @default(autoincrement())
   propertyId Int
   amenityId  Int
   createdAt  DateTime @default(now())
   
-  // Relaciones
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
   
-  // Índices y constrains
-  @@unique([propertyId, amenityId]) // Evitar duplicados
+  @@unique([propertyId, amenityId])
   @@index([propertyId])
   @@index([amenityId])
+}
+
+// ============================================
+// MODELOS DE UBICACIÓN (CHILE)
+// ============================================
+
+model Region {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(10) // Ej: "RM", "V", "VIII"
+  name        String   @db.VarChar(100) // Ej: "Región Metropolitana"
+  romanNumber String   @db.VarChar(10)  // Ej: "XIII"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relaciones
+  comunas     Comuna[]
+  properties  Property[]
+  students    Student[]
+  landlords   Landlord[]
+  
+  @@index([code])
+}
+
+model Comuna {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100) // Ej: "Santiago", "Las Condes"
+  regionId  Int      // Foreign key a Region
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relaciones
+  region      Region     @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  properties  Property[]
+  students    Student[]
+  landlords   Landlord[]
+  
+  @@index([regionId])
+  @@index([name, regionId])
 }
 
 // ============================================
@@ -218,4 +216,3 @@ model RefreshToken {
   @@index([landlordId])
   @@index([expiresAt])
 }
-

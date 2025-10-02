@@ -119,44 +119,45 @@ export const createPropertyController = async (req: Request, res: Response) => {
 
     console.log("🔍 Resultado de validación:", utilityBillValidation);
 
-    // Verificar si la validación fue exitosa
+    // Verificar si la validación fue exitosa (MODO ESTRICTO: Requiere 3/3 campos)
     if (!utilityBillValidation.isValid) {
-      let errorMessage = "Los datos de la cuenta de servicios no coinciden:";
-      const missingFields = [];
+      // Usar mensajes de error detallados del servicio OCR
+      const detailedErrors = utilityBillValidation.errorMessages || [];
 
-      if (!utilityBillValidation.matchDetails.nameFound) {
-        missingFields.push("nombre del landlord");
-      }
-      if (!utilityBillValidation.matchDetails.addressFound) {
-        missingFields.push("dirección de la propiedad");
-      }
-      if (!utilityBillValidation.matchDetails.comunaFound) {
-        missingFields.push("comuna");
-      }
+      // Título del error principal
+      const errorTitle = "La validación de la cuenta de servicios falló";
 
-      if (missingFields.length > 0) {
-        errorMessage += ` No se encontró: ${missingFields.join(", ")}.`;
-      }
+      // Construir lista de problemas específicos
+      const problemsList =
+        detailedErrors.length > 0
+          ? detailedErrors
+          : ["No se pudieron verificar los datos en la cuenta de servicios."];
 
       res.status(400).json({
         success: false,
-        message: errorMessage,
-        details: {
-          form: {
-            landlordName: propertyData.landlordName,
-            propertyAddress: propertyData.address,
-            propertyComuna: propertyData.comunaName, // ← Directo del form
-            regionName: propertyData.regionName, // ← Directo del form
-            regionId: propertyData.regionId,
-            comunaId: propertyData.comunaId,
-          },
-          matchDetails: utilityBillValidation.matchDetails,
-          confidence: utilityBillValidation.confidence,
-          rawTextSample:
-            utilityBillValidation.rawText.substring(0, 200) + "...",
-          suggestion:
-            "Asegúrate de que la cuenta de servicios contenga el nombre del propietario, la dirección completa con números, y la comuna de la propiedad.",
+        message: errorTitle,
+        errors: problemsList,
+        validation: {
+          nombreEncontrado: utilityBillValidation.matchDetails.nameFound,
+          direccionEncontrada: utilityBillValidation.matchDetails.addressFound,
+          comunaEncontrada: utilityBillValidation.matchDetails.comunaFound,
+          confianza: `${utilityBillValidation.confidence}%`,
+          requerimiento:
+            "Se requieren los 3 campos (nombre, dirección y comuna)",
         },
+        datosIngresados: {
+          nombrePropietario: propertyData.landlordName,
+          direccionPropiedad: propertyData.address,
+          comuna: propertyData.comunaName,
+          region: propertyData.regionName,
+        },
+        sugerencias: [
+          "Verifica que la cuenta de servicios esté a nombre del propietario registrado",
+          "Asegúrate de que el número de calle sea visible y legible",
+          "Confirma que la dirección completa aparezca en el documento",
+          "Verifica que la comuna esté claramente especificada",
+          "Usa una imagen de alta calidad con buena iluminación",
+        ],
       });
       return;
     }
