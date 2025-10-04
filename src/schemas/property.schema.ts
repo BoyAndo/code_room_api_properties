@@ -50,7 +50,6 @@ export const createPropertySchema = z.object({
       return num;
     }),
   ]),
-  zipCode: z.string().optional(),
   propertyType: PropertyTypeEnum,
   bedrooms: z.union([
     z.number().int().min(0),
@@ -134,33 +133,6 @@ export const createPropertySchema = z.object({
       }),
     ])
     .optional(),
-  rules: z.string().optional(),
-  latitude: z
-    .union([
-      z.number(),
-      z.string().transform((val) => {
-        if (!val || val.trim() === "") return undefined;
-        const num = parseFloat(val);
-        if (isNaN(num)) {
-          throw new Error("La latitud debe ser un número válido");
-        }
-        return num;
-      }),
-    ])
-    .optional(),
-  longitude: z
-    .union([
-      z.number(),
-      z.string().transform((val) => {
-        if (!val || val.trim() === "") return undefined;
-        const num = parseFloat(val);
-        if (isNaN(num)) {
-          throw new Error("La longitud debe ser un número válido");
-        }
-        return num;
-      }),
-    ])
-    .optional(),
 });
 
 // Schema para actualizar una propiedad (todos los campos opcionales excepto el ID)
@@ -215,7 +187,6 @@ export const updatePropertySchema = z.object({
       }),
     ])
     .optional(),
-  zipCode: z.string().optional(),
   propertyType: PropertyTypeEnum.optional(),
   bedrooms: z
     .union([
@@ -314,33 +285,6 @@ export const updatePropertySchema = z.object({
             })
             .filter(Boolean);
         }
-      }),
-    ])
-    .optional(),
-  rules: z.string().optional(),
-  latitude: z
-    .union([
-      z.number(),
-      z.string().transform((val) => {
-        if (!val || val.trim() === "") return undefined;
-        const num = parseFloat(val);
-        if (isNaN(num)) {
-          throw new Error("La latitud debe ser un número válido");
-        }
-        return num;
-      }),
-    ])
-    .optional(),
-  longitude: z
-    .union([
-      z.number(),
-      z.string().transform((val) => {
-        if (!val || val.trim() === "") return undefined;
-        const num = parseFloat(val);
-        if (isNaN(num)) {
-          throw new Error("La longitud debe ser un número válido");
-        }
-        return num;
       }),
     ])
     .optional(),
