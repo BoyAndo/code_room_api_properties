@@ -162,7 +162,7 @@ model Region {
   id          Int      @id @default(autoincrement())
   code        String   @unique @db.VarChar(10) // Ej: "RM", "V", "VIII"
   name        String   @db.VarChar(100) // Ej: "Región Metropolitana"
-  romanNumber String   @db.VarChar(10)  // Ej: "XIII"
+  romanNumber String?  @db.VarChar(10)  // Ej: "XIII"
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   

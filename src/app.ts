@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import propertyRoutes from "./routes/propertyRoutes";
+import locationRoutes from "./routes/location.routes";
 import {
   verifyToken,
   getCurrentUser,
@@ -37,6 +38,7 @@ app.use(cookieParser());
 
 // Rutas principales
 app.use("/api/properties", propertyRoutes);
+app.use("/api/locations", locationRoutes);
 
 // Endpoint de prueba de autenticación
 app.get("/api/auth/test", verifyToken, (req, res) => {
