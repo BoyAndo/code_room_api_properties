@@ -300,6 +300,7 @@ export const updatePropertySchema = z.object({
     .optional(), // Si true, reemplaza todas las imágenes; si false, agrega a las existentes
 });
 
+
 // Schema para filtros de búsqueda
 export const propertyFiltersSchema = z.object({
   comuna: z.string().optional(),
@@ -317,7 +318,27 @@ export const propertyFiltersSchema = z.object({
   limit: z.number().int().positive().max(100).optional().default(10),
 });
 
+// ----------------------------------------------------
+// 🆕 SCHEMAS AUXILIARES PARA EL SERVICIO
+// ----------------------------------------------------
+
+// Esquema para las coordenadas geográficas
+export const GeoCoordinatesSchema = z.object({
+  // Se requiere que sean números, ya que el controlador los calcula
+  latitude: z.number().refine(val => val >= -90 && val <= 90, "Latitud debe estar entre -90 y 90"),
+  longitude: z.number().refine(val => val >= -180 && val <= 180, "Longitud debe estar entre -180 y 180"),
+});
+
+// Schema FINAL que recibe la función `createProperty` en el servicio
+// Combina los datos de entrada con las coordenadas geocodificadas
+export const createPropertyServiceSchema = createPropertySchema.merge(GeoCoordinatesSchema);
+
+
 // Tipos TypeScript derivados de los schemas
 export type CreatePropertyInput = z.infer<typeof createPropertySchema>;
+
+// 🆕 Nuevo tipo que tu función de servicio debe usar
+export type CreatePropertyServiceInput = z.infer<typeof createPropertyServiceSchema>; 
+
 export type UpdatePropertyInput = z.infer<typeof updatePropertySchema>;
 export type PropertyFilters = z.infer<typeof propertyFiltersSchema>;

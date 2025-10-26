@@ -89,6 +89,8 @@ model Property {
   address               String
   comunaId              Int      // Foreign key a Comuna
   regionId              Int      // Foreign key a Region
+  latitude              Decimal    @db.Decimal(10, 7) // Almacenar latitud con alta precisión
+  longitude             Decimal    @db.Decimal(10, 7) // Almacenar longitud con alta precisión
   propertyType          PropertyType
   bedrooms              Int
   bathrooms             Int

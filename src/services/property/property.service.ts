@@ -1,46 +1,37 @@
-import { PrismaClient } from "../../generated/prisma";
+// En property.service.ts
+
+// 1. CORRECCIÓN EN LA IMPORTACIÓN: Importar 'Prisma' para acceder a la clase Decimal
+import { PrismaClient, Prisma } from "../../generated/prisma";
 import {
   CreatePropertyInput,
   UpdatePropertyInput,
   PropertyFilters,
+  CreatePropertyServiceInput,
 } from "../../schemas/property.schema";
 import { fetchLandlordsInfo } from "../landlord/landlord.service";
 
+// 🆕 Obtener la clase Decimal directamente de Prisma
+const Decimal = Prisma.Decimal;
+
+// Inicializar prisma (esto permanece igual)
 const prisma = new PrismaClient();
 
 /**
- * Cre    cons    //        // Preparar datos para actualización
-    const updatePayload: any = { ...data };
-
-    console.log("📤 Payload que se enviará a Prisma:", updatePayload);
-    console.log("🆔 ID de propiedad a actualizar:", id);
-
-    // Verificar que la propiedad existe antes de actualizarog("📤 Payload que se enviará a Prisma:", updatePayload);
-    console.log("🆔 ID de propiedad a actualizar:", id);
-
-    // Verificar que la propiedad existe antes de actualizarog("📤 Payload que se enviará a Prisma:", updatePayload);
-    console.log("🆔 ID de propiedad a actualizar:", id);
-
-    // Verificar que la propiedad existe antes de actualizaratos para actualización
-    const updatePayload: any = { ...data };
-
-    console.log("📤 Payload que se enviará a Prisma:", updatePayload);
-    console.log("🆔 ID de propiedad a actualizar:", id);ges, replaceImages, amenities, ...data } = updateData;
-
-    // Preparar datos para actualización
-    const updatePayload: any = { ...data };
-
-    console.log("📤 Payload que se enviará a Prisma:", updatePayload);
-    console.log("🆔 ID de propiedad a actualizar:", id);ropiedad en la base de datos
+ * Crea una nueva propiedad en la base de datos
  */
 export const createProperty = async (
-  propertyData: CreatePropertyInput,
+  propertyData: CreatePropertyServiceInput,
   images: string[],
   utilityBillUrl: string,
   utilityBillValidated: boolean = false
 ) => {
   try {
     console.log("🏠 Creando nueva propiedad...");
+
+    // 2. CORRECCIÓN EN EL USO: Usar el constructor 'Decimal' que acabamos de importar
+    // Ya no necesitas '(prisma as any)'
+    const latitudeDecimal = new Decimal(propertyData.latitude);
+    const longitudeDecimal = new Decimal(propertyData.longitude);
 
     const property = await prisma.property.create({
       data: {
@@ -57,6 +48,9 @@ export const createProperty = async (
         monthlyRent: propertyData.monthlyRent,
         utilityBillUrl,
         utilityBillValidated,
+        // ✅ USANDO LOS OBJETOS DECIMAL CORREGIDOS
+        latitude: latitudeDecimal,
+        longitude: longitudeDecimal,
         // Crear las imágenes relacionadas
         propertyImages: {
           create: images.map((imageUrl, index) => ({
@@ -612,6 +606,8 @@ export const getPropertiesByLandlordId = async (landlordId: number) => {
         landlordId: landlordId,
       },
       include: {
+        region: true,
+        comuna: true,
         propertyImages: true,
         propertyAmenities: {
           include: {
@@ -625,10 +621,16 @@ export const getPropertiesByLandlordId = async (landlordId: number) => {
     });
 
     // Transformar los datos para que sean consistentes con el formato esperado
-    const transformedProperties = properties.map((property) => ({
+    const transformedProperties = properties.map((property: any) => ({
       ...property,
+      regionName: property.region?.name || property.regionName,
+      comunaName: property.comuna?.name || property.comunaName,
+
+      // Limpieza de campos (esto ya estaba bien)
       amenities: property.propertyAmenities.map((pa: any) => pa.amenity),
-      propertyAmenities: undefined, // Remover el campo original
+      propertyAmenities: undefined,
+      region: undefined, // Opcional: remover el objeto de relación si no lo necesitas
+      comuna: undefined, // Opcional: remover el objeto de relación si no lo necesitas
     }));
 
     return transformedProperties;

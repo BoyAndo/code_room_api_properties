@@ -3,7 +3,11 @@ import {
   createPropertySchema,
   updatePropertySchema,
   propertyFiltersSchema,
+  // 🆕 Importar el nuevo esquema para el objeto final que va al servicio
+  createPropertyServiceSchema, 
 } from "../schemas/property.schema";
+// 🆕 Importar axios para la llamada HTTP a Google Maps
+import axios from 'axios'; 
 import {
   createProperty,
   getPropertyById,
@@ -181,6 +185,55 @@ export const createPropertyController = async (req: Request, res: Response) => {
     }
 
     console.log("✅ Validación de cuenta de servicios exitosa");
+    
+    // ----------------------------------------------------
+    // 📍 PASO CLAVE: GEOCODIFICACIÓN
+    // ----------------------------------------------------
+    let latitude: number;
+    let longitude: number;
+    
+    const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: "Error de configuración: GOOGLE_MAPS_API_KEY no encontrada en variables de entorno.",
+      });
+    }
+
+    // Usamos los datos validados del formulario: address, comunaName y regionName
+    const fullAddress = `${propertyData.address}, ${propertyData.comunaName}, ${propertyData.regionName}, Chile`;
+
+    console.log(`🌍 Geocodificando dirección: ${fullAddress}`);
+
+    try {
+      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${GOOGLE_MAPS_API_KEY}`;
+      
+      const geoResponse = await axios.get(geocodeUrl);
+      
+      if (geoResponse.data.status !== 'OK' || geoResponse.data.results.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `No se pudo geocodificar la dirección: ${fullAddress}. Verifique el formato.`,
+        });
+      }
+
+      const location = geoResponse.data.results[0].geometry.location;
+      latitude = location.lat;
+      longitude = location.lng;
+
+      console.log(`📍 Coordenadas encontradas: Lat=${latitude}, Lng=${longitude}`);
+
+    } catch (geoError) {
+      console.error("❌ Error al llamar a la API de Geocodificación:", geoError);
+      return res.status(500).json({ 
+          success: false, 
+          message: "Error de comunicación al verificar la dirección con el servicio de mapas." 
+      });
+    }
+    // ----------------------------------------------------
+    // 📍 FIN DE GEOCODIFICACIÓN
+    // ----------------------------------------------------
 
     // Subir archivos al storage
     console.log("📤 Subiendo archivos...");
@@ -206,9 +259,24 @@ export const createPropertyController = async (req: Request, res: Response) => {
       imagenes: imageUrls,
     });
 
+    // ----------------------------------------------------
+    // 🆕 PASO FINAL: Crear propiedad con coordenadas
+    // ----------------------------------------------------
+    
+    // 1. Combinar los datos del formulario (propertyData) con las coordenadas obtenidas
+    const dataWithCoords = {
+      ...propertyData,
+      latitude,  // número (obtenido de Google Maps)
+      longitude, // número (obtenido de Google Maps)
+    };
+    
+    // 2. Usamos el esquema de servicio para validar el objeto completo
+    // Esto asegura que TypeScript reconozca el objeto como CreatePropertyServiceInput.
+    const finalPropertyData = createPropertyServiceSchema.parse(dataWithCoords);
+    
     // Crear propiedad en la base de datos
     const newProperty = await createProperty(
-      propertyData,
+      finalPropertyData, // ⬅️ Usamos el objeto final validado, que incluye latitude y longitude
       imageUrls,
       utilityBillUrl,
       true // Marcar como validada ya que pasó la validación
