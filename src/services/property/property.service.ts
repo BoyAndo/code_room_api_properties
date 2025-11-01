@@ -287,137 +287,85 @@ export const getProperties = async (filters: PropertyFilters) => {
  * Obtiene propiedades con información completa del landlord (OPTIMIZADO)
  * Esta función hace una sola llamada al microservicio de landlords para todos los propietarios
  */
-export const getPropertiesWithLandlordInfo = async (
-  filters: PropertyFilters
-) => {
-  try {
-    console.log("🏠 Obteniendo propiedades con información de landlords...");
+// En property.service.ts
 
-    const {
-      comuna,
-      region,
-      propertyType,
-      minRent,
-      maxRent,
-      minBedrooms,
-      maxBedrooms,
-      minBathrooms,
-      maxBathrooms,
-      isAvailable,
-      landlordId,
-      page = 1,
-      limit = 10,
-    } = filters;
+/**
+ * Obtiene propiedades con información de landlords y PAGINACIÓN.
+ * La cláusula 'where' y 'orderBy' es construida en el controlador.
+ */
+export const getPropertiesWithLandlordInfo = async (combinedFilters: any) => { 
+    try {
+        // 1. Desestructurar los filtros del objeto combinado (incluye where, orderBy, page, limit)
+        const { 
+            where, 
+            orderBy, 
+            page = 1, // Asumimos valores por defecto
+            limit = 10,
+        } = combinedFilters;
 
-    const skip = (page - 1) * limit;
-
-    // Construir condiciones de filtro
-    const where: any = {};
-
-    if (comuna) where.comuna = { contains: comuna, mode: "insensitive" };
-    if (region) where.region = { contains: region, mode: "insensitive" };
-    if (propertyType) where.propertyType = propertyType;
-    if (landlordId) where.landlordId = landlordId;
-    if (isAvailable !== undefined) where.isAvailable = isAvailable;
-
-    // Filtros de rango
-    if (minRent || maxRent) {
-      where.monthlyRent = {};
-      if (minRent) where.monthlyRent.gte = minRent;
-      if (maxRent) where.monthlyRent.lte = maxRent;
-    }
-
-    if (minBedrooms || maxBedrooms) {
-      where.bedrooms = {};
-      if (minBedrooms) where.bedrooms.gte = minBedrooms;
-      if (maxBedrooms) where.bedrooms.lte = maxBedrooms;
-    }
-
-    if (minBathrooms || maxBathrooms) {
-      where.bathrooms = {};
-      if (minBathrooms) where.bathrooms.gte = minBathrooms;
-      if (maxBathrooms) where.bathrooms.lte = maxBathrooms;
-    }
-
-    // Obtener propiedades y conteo total
-    const [properties, total] = await Promise.all([
-      prisma.property.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          propertyImages: {
-            where: { isPrimary: true }, // Solo imagen principal para performance
-            take: 1,
-          },
-          propertyAmenities: {
+        const skip = (page - 1) * limit;
+        
+        // 2. Ejecutar la consulta con Prisma
+        const properties = await prisma.property.findMany({
+            where: where || {},         // ⬅️ USA EL OBJETO 'WHERE' DEL CONTROLADOR
+            orderBy: orderBy || { createdAt: 'desc' }, // ⬅️ USA EL OBJETO 'ORDERBY' DEL CONTROLADOR
+            skip: skip,
+            take: limit,
+            
+            // 3. Mantener la lógica de inclusiones
             include: {
-              amenity: {
-                select: {
-                  id: true,
-                  name: true,
-                  category: true,
-                  icon: true,
+                // Asumo que tu modelo 'Property' tiene el campo 'landlordId'
+                // Landlord no se puede incluir directamente si está en otro servicio (fetchLandlordsInfo)
+                propertyImages: {
+                    orderBy: { displayOrder: "asc" },
                 },
-              },
+                propertyAmenities: {
+                    include: {
+                        amenity: true,
+                    },
+                },
+                // Si tu modelo Property tiene relaciones Region/Comuna, inclúyelas
             },
-          },
-        },
-      }),
-      prisma.property.count({ where }),
-    ]);
+        });
+        
+        // 4. Obtener información de Landlords (Landlord Info Service)
+        const landlordIds = properties.map(p => p.landlordId);
+        const uniqueLandlordIds = [...new Set(landlordIds)];
+        const landlordsInfo = await fetchLandlordsInfo(uniqueLandlordIds);
 
-    // Obtener IDs únicos de landlords
-    const landlordIds = [...new Set(properties.map((p) => p.landlordId))];
-    console.log(
-      `🔍 Encontrados ${landlordIds.length} landlords únicos para ${properties.length} propiedades`
-    );
+        // 5. Mapear y devolver el resultado (similar a getPropertyByIdWithLandlord)
+        const propertiesWithInfo = properties.map(property => {
+            const landlordInfo = landlordsInfo.find(l => l.id === property.landlordId) || {
+                id: property.landlordId,
+                landlordName: "Landlord no encontrado",
+            };
+            
+            return {
+                ...property,
+                images: property.propertyImages.map((img) => img.imageUrl),
+                amenities: property.propertyAmenities.map((pa) => pa.amenity),
+                landlord: landlordInfo,
+            };
+        });
 
-    // Obtener información de landlords en una sola llamada batch
-    const landlordsInfo = await fetchLandlordsInfo(landlordIds);
+        // 6. Obtener el total de propiedades para la paginación (con WHERE)
+        const total = await prisma.property.count({ where: where || {} });
 
-    // Crear mapa de landlords para acceso rápido
-    const landlordsMap = new Map(
-      landlordsInfo.map((landlord) => [landlord.id, landlord])
-    );
-
-    // Combinar datos de propiedades con información de landlords
-    const propertiesWithLandlord = properties.map((property) => {
-      const landlordInfo = landlordsMap.get(property.landlordId);
-
-      return {
-        ...property,
-        images: property.propertyImages.map((img) => img.imageUrl),
-        amenities: property.propertyAmenities.map((pa) => pa.amenity),
-        landlord: landlordInfo || {
-          id: property.landlordId,
-          landlordName: "Landlord no encontrado",
-        },
-      };
-    });
-
-    console.log(
-      `✅ Obtenidas ${propertiesWithLandlord.length} propiedades con información de landlords`
-    );
-
-    return {
-      properties: propertiesWithLandlord,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  } catch (error) {
-    console.error("❌ Error obteniendo propiedades con landlord info:", error);
-    throw new Error(
-      `Error obteniendo propiedades con landlord info: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`
-    );
-  }
+        return {
+            properties: propertiesWithInfo,
+            total: total,
+            page: page,
+            limit: limit,
+            totalPages: Math.ceil(total / limit),
+        };
+    } catch (error) {
+        console.error("❌ Error obteniendo propiedades con landlord info:", error);
+        throw new Error(
+            `Error obteniendo propiedades con landlord info: ${
+                error instanceof Error ? error.message : "Error desconocido"
+            }`
+        );
+    }
 };
 
 /**
