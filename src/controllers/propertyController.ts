@@ -4,10 +4,10 @@ import {
   updatePropertySchema,
   propertyFiltersSchema,
   // 🆕 Importar el nuevo esquema para el objeto final que va al servicio
-  createPropertyServiceSchema, 
+  createPropertyServiceSchema,
 } from "../schemas/property.schema";
 // 🆕 Importar axios para la llamada HTTP a Google Maps
-import axios from 'axios'; 
+import axios from "axios";
 import {
   createProperty,
   getPropertyById,
@@ -29,7 +29,6 @@ import {
   LandlordPayload,
   isLandlord,
 } from "../middlewares/auth.middleware";
-
 /**
  * Crear una nueva propiedad
  */
@@ -185,19 +184,20 @@ export const createPropertyController = async (req: Request, res: Response) => {
     }
 
     console.log("✅ Validación de cuenta de servicios exitosa");
-    
+
     // ----------------------------------------------------
     // 📍 PASO CLAVE: GEOCODIFICACIÓN
     // ----------------------------------------------------
     let latitude: number;
     let longitude: number;
-    
+
     const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
     if (!GOOGLE_MAPS_API_KEY) {
       return res.status(500).json({
         success: false,
-        message: "Error de configuración: GOOGLE_MAPS_API_KEY no encontrada en variables de entorno.",
+        message:
+          "Error de configuración: GOOGLE_MAPS_API_KEY no encontrada en variables de entorno.",
       });
     }
 
@@ -207,11 +207,16 @@ export const createPropertyController = async (req: Request, res: Response) => {
     console.log(`🌍 Geocodificando dirección: ${fullAddress}`);
 
     try {
-      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${GOOGLE_MAPS_API_KEY}`;
-      
+      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+        fullAddress
+      )}&key=${GOOGLE_MAPS_API_KEY}`;
+
       const geoResponse = await axios.get(geocodeUrl);
-      
-      if (geoResponse.data.status !== 'OK' || geoResponse.data.results.length === 0) {
+
+      if (
+        geoResponse.data.status !== "OK" ||
+        geoResponse.data.results.length === 0
+      ) {
         return res.status(400).json({
           success: false,
           message: `No se pudo geocodificar la dirección: ${fullAddress}. Verifique el formato.`,
@@ -222,13 +227,18 @@ export const createPropertyController = async (req: Request, res: Response) => {
       latitude = location.lat;
       longitude = location.lng;
 
-      console.log(`📍 Coordenadas encontradas: Lat=${latitude}, Lng=${longitude}`);
-
+      console.log(
+        `📍 Coordenadas encontradas: Lat=${latitude}, Lng=${longitude}`
+      );
     } catch (geoError) {
-      console.error("❌ Error al llamar a la API de Geocodificación:", geoError);
-      return res.status(500).json({ 
-          success: false, 
-          message: "Error de comunicación al verificar la dirección con el servicio de mapas." 
+      console.error(
+        "❌ Error al llamar a la API de Geocodificación:",
+        geoError
+      );
+      return res.status(500).json({
+        success: false,
+        message:
+          "Error de comunicación al verificar la dirección con el servicio de mapas.",
       });
     }
     // ----------------------------------------------------
@@ -262,18 +272,18 @@ export const createPropertyController = async (req: Request, res: Response) => {
     // ----------------------------------------------------
     // 🆕 PASO FINAL: Crear propiedad con coordenadas
     // ----------------------------------------------------
-    
+
     // 1. Combinar los datos del formulario (propertyData) con las coordenadas obtenidas
     const dataWithCoords = {
       ...propertyData,
-      latitude,  // número (obtenido de Google Maps)
+      latitude, // número (obtenido de Google Maps)
       longitude, // número (obtenido de Google Maps)
     };
-    
+
     // 2. Usamos el esquema de servicio para validar el objeto completo
     // Esto asegura que TypeScript reconozca el objeto como CreatePropertyServiceInput.
     const finalPropertyData = createPropertyServiceSchema.parse(dataWithCoords);
-    
+
     // Crear propiedad en la base de datos
     const newProperty = await createProperty(
       finalPropertyData, // ⬅️ Usamos el objeto final validado, que incluye latitude y longitude
@@ -672,8 +682,10 @@ export const getPropertyWithLandlordController = async (
   }
 };
 
+// En propertyController.ts
+
 /**
- * Obtener propiedades con información de landlords (OPTIMIZADO)
+ * Obtener propiedades con información de landlords (OPTIMIZADO con filtros y ordenamiento)
  */
 export const getPropertiesWithLandlordController = async (
   req: Request,
@@ -683,20 +695,88 @@ export const getPropertiesWithLandlordController = async (
     console.log("🏠 Obteniendo propiedades con información de landlords...");
     console.log("📋 Query params:", req.query);
 
-    // Validar parámetros de consulta
-    const parseResult = propertyFiltersSchema.safeParse(req.query);
+    // 1. Extraer todos los parámetros necesarios del query
+    const {
+      comuna, // ⬅️ Usamos 'comuna'
+      propertyType,
+      minRent, // ⬅️ Usamos 'minRent'
+      maxRent, // ⬅️ Usamos 'maxRent'
+      sortBy,
+      order,
+      ...otherFilters
+    } = req.query;
 
-    if (!parseResult.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Parámetros de consulta inválidos",
-        errors: parseResult.error.issues,
-      });
+    const where: any = {};
+    const orderBy: any = {};
+
+    // 2. CONSTRUCCIÓN DE LOS FILTROS (WHERE)
+
+    // FILTRO POR CIUDAD (comuna)
+    if (comuna && typeof comuna === "string") {
+      // ✅ CORRECCIÓN FINAL: Usar la estructura 'is' para la relación Comuna y el campo 'name'
+      where.comuna = {
+        is: {
+          // <--- CLAVE: Se usa 'is' para filtrar en una relación M:1
+          name: {
+            // <--- CLAVE: El nombre del campo en el modelo Comuna
+            contains: comuna,
+          },
+        },
+      };
     }
 
-    const filters = parseResult.data;
+    // FILTRO POR TIPO DE PROPIEDAD
+    if (propertyType && typeof propertyType === "string") {
+      where.propertyType = propertyType.toUpperCase();
+    }
 
-    const result = await getPropertiesWithLandlordInfo(filters);
+    if (minRent || maxRent) {
+      where.monthlyRent = {}; // ⬅️ **CLAVE: monthlyRent** debe ser el nombre exacto de la columna en tu schema.prisma
+
+      const min = parseInt(minRent as string);
+      if (!isNaN(min)) {
+        where.monthlyRent.gte = min;
+      }
+
+      const max = parseInt(maxRent as string);
+      if (!isNaN(max)) {
+        where.monthlyRent.lte = max;
+      }
+    }
+
+    // 🔑 LÓGICA DE FILTRADO DE PRECIO
+    if (minRent || maxRent) {
+      where.monthlyRent = {}; // Nombre de columna confirmado: monthlyRent
+
+      // Usar parseFloat es más seguro para tipos Decimal/Float, aunque los precios sean enteros
+      const min = parseFloat(minRent as string);
+      if (!isNaN(min)) {
+        where.monthlyRent.gte = min; // Greater Than or Equal
+      }
+
+      const max = parseFloat(maxRent as string);
+      if (!isNaN(max)) {
+        where.monthlyRent.lte = max; // Less Than or Equal
+      }
+    }
+
+    // 🔑 LÓGICA DE ORDENAMIENTO
+    if (sortBy === "monthlyRent" && (order === "asc" || order === "desc")) {
+      orderBy.monthlyRent = order;
+    } else {
+      // Orden por defecto, usado cuando el frontend envía 'recent' o nada.
+      orderBy.createdAt = "desc";
+    }
+
+    // 4. Construir el objeto final de filtros para el servicio
+    const combinedFilters = {
+      ...otherFilters,
+      where,
+      orderBy,
+    };
+
+    // 5. Llamar al servicio
+    const result = await getPropertiesWithLandlordInfo(combinedFilters as any);
 
     console.log(
       `✅ Devolviendo ${result.properties.length} propiedades con landlord info`
@@ -708,6 +788,14 @@ export const getPropertiesWithLandlordController = async (
     });
   } catch (error) {
     console.error("❌ Error obteniendo propiedades con landlords:", error);
+
+    if (error && typeof error === "object" && "issues" in error) {
+      return res.status(400).json({
+        success: false,
+        message: "Parámetros de consulta inválidos",
+        errors: (error as any).issues,
+      });
+    }
 
     res.status(500).json({
       success: false,
