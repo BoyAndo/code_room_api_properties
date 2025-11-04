@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { PrismaClient } from "../generated/prisma";
 import {
   createPropertyController,
   getPropertyController,
@@ -8,6 +9,9 @@ import {
   updatePropertyController,
   deletePropertyController,
 } from "../controllers/propertyController";
+import { isLandlord, isStudent } from "../middlewares/auth.middleware";
+
+const prisma = new PrismaClient();
 import { getAmenitiesController } from "../controllers/amenity.controller";
 import { uploadPropertyFiles } from "../middlewares/multer";
 import {
@@ -59,7 +63,28 @@ router.get(
 router.get(
   "/with-landlord",
   verifyToken,
-  requireStudent,
+  async (req, res, next) => {
+    try {
+      // Si es landlord, solo puede ver sus propias propiedades
+      if (req.user && isLandlord(req.user)) {
+        // Modificar los filtros para mostrar solo sus propiedades
+        req.query.landlordId = req.user.id.toString();
+      } 
+      // Si es estudiante, puede ver todas las propiedades
+      else if (req.user && isStudent(req.user)) {
+        // No modificar los filtros, puede ver todo
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: "Acceso denegado"
+        });
+      }
+      
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
   getPropertiesWithLandlordController
 );
 
@@ -71,7 +96,50 @@ router.get(
 router.get(
   "/:id/with-landlord",
   verifyToken,
-  requireStudent,
+  async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: "Usuario no autenticado"
+        });
+      }
+
+      const propertyId = parseInt(req.params.id);
+      // Obtener la propiedad primero para verificar el propietario
+      const property = await prisma.property.findUnique({
+        where: { id: propertyId }
+      });
+
+      if (!property) {
+        return res.status(404).json({
+          success: false,
+          message: "Propiedad no encontrada"
+        });
+      }
+
+      // Si es landlord, solo puede ver sus propias propiedades
+      if (isLandlord(req.user)) {
+        if (property.landlordId !== req.user.id) {
+          return res.status(403).json({
+            success: false,
+            message: "No tienes permiso para ver esta propiedad"
+          });
+        }
+      } 
+      // Si es estudiante, puede ver cualquier propiedad
+      else if (!isStudent(req.user)) {
+        return res.status(403).json({
+          success: false,
+          message: "Acceso denegado"
+        });
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
   getPropertyWithLandlordController
 );
 
