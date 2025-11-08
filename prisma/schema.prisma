@@ -26,6 +26,7 @@ model Student {
   password              String
   studentCollege        String
   studentCertificateUrl String
+  profilePhotoUrl       String?
   role                  String
   comunaId              Int      // Foreign key a Comuna (obligatorio)
   regionId              Int      // Foreign key a Region (obligatorio)
@@ -50,6 +51,7 @@ model Landlord {
   landlordName      String
   password          String
   landlordCarnetUrl String
+  profilePhotoUrl   String?
   role              String   @default("landlord")
   comunaId          Int      // Foreign key a Comuna (obligatorio)
   regionId          Int      // Foreign key a Region (obligatorio)
