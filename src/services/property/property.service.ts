@@ -42,44 +42,58 @@ export const createProperty = async (
   try {
     console.log("🏠 Creando nueva propiedad...");
 
-    const property = await prisma.property.create({
-      data: {
-        landlordId: propertyData.landlordId,
-        title: propertyData.title,
-        description: propertyData.description,
-        address: propertyData.address,
-        regionId: propertyData.regionId,
-        comunaId: propertyData.comunaId,
-        propertyType: propertyData.propertyType,
-        bedrooms: propertyData.bedrooms,
-        bathrooms: propertyData.bathrooms,
-        squareMeters: propertyData.squareMeters,
-        monthlyRent: propertyData.monthlyRent,
-        utilityBillUrl,
-        utilityBillValidated,
-        // Crear las imágenes relacionadas
-        propertyImages: {
-          create: images.map((imageUrl, index) => ({
-            imageUrl,
-            displayOrder: index,
-            isPrimary: index === 0,
-            altText: `Imagen ${index + 1} de ${propertyData.title}`,
-          })),
-        },
-        // Crear las relaciones con amenities si se proporcionan
-        propertyAmenities: propertyData.amenities
-          ? {
-              create: propertyData.amenities.map((amenityId) => ({
-                amenityId: amenityId,
-              })),
-            }
-          : undefined,
+    // Preparar los datos base
+    const propertyCreateData: any = {
+      landlordId: propertyData.landlordId,
+      title: propertyData.title,
+      description: propertyData.description,
+      address: propertyData.address,
+      regionId: propertyData.regionId,
+      comunaId: propertyData.comunaId,
+      propertyType: propertyData.propertyType,
+      bedrooms: propertyData.bedrooms,
+      bathrooms: propertyData.bathrooms,
+      squareMeters: propertyData.squareMeters,
+      monthlyRent: propertyData.monthlyRent,
+      utilityBillUrl,
+      utilityBillValidated,
+      updatedAt: new Date(), // Campo requerido por Prisma
+      // Crear las imágenes relacionadas (nota: usar propertyimage en minúscula)
+      propertyimage: {
+        create: images.map((imageUrl, index) => ({
+          imageUrl,
+          displayOrder: index,
+          isPrimary: index === 0,
+          altText: `Imagen ${index + 1} de ${propertyData.title}`,
+        })),
       },
+      // Crear las relaciones con amenities si se proporcionan (nota: usar propertyamenity en minúscula)
+      propertyamenity: propertyData.amenities
+        ? {
+            create: propertyData.amenities.map((amenityId) => ({
+              amenityId: amenityId,
+            })),
+          }
+        : undefined,
+    };
+
+    // Solo agregar latitude y longitude si tienen valores válidos
+    if (propertyData.latitude !== undefined && propertyData.latitude !== null) {
+      propertyCreateData.latitude = propertyData.latitude;
+    }
+    if (propertyData.longitude !== undefined && propertyData.longitude !== null) {
+      propertyCreateData.longitude = propertyData.longitude;
+    }
+
+    const property = await prisma.property.create({
+      data: propertyCreateData,
       include: {
-        propertyImages: {
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyimage: {
           orderBy: { displayOrder: "asc" },
         },
-        propertyAmenities: {
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyamenity: {
           include: {
             amenity: true,
           },
@@ -88,7 +102,17 @@ export const createProperty = async (
     });
 
     console.log("✅ Propiedad creada exitosamente:", property.id);
-    return property;
+    
+    // Mapear propertyimage y propertyamenity a los nombres esperados
+    const transformedProperty = {
+      ...property,
+      // @ts-ignore
+      propertyImages: property.propertyimage || [],
+      // @ts-ignore
+      propertyAmenities: property.propertyamenity || [],
+    };
+    
+    return transformedProperty;
   } catch (error) {
     console.error("❌ Error creando propiedad:", error);
     throw new Error(
@@ -107,10 +131,12 @@ export const getPropertyById = async (id: number) => {
     const property = await prisma.property.findUnique({
       where: { id },
       include: {
-        propertyImages: {
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyimage: {
           orderBy: { displayOrder: "asc" },
         },
-        propertyAmenities: {
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyamenity: {
           include: {
             amenity: true,
           },
@@ -124,8 +150,10 @@ export const getPropertyById = async (id: number) => {
 
     return {
       ...property,
-      images: property.propertyImages.map((img) => img.imageUrl),
-      amenities: property.propertyAmenities.map((pa) => pa.amenity),
+      // @ts-ignore
+      images: property.propertyimage?.map((img: any) => img.imageUrl) || [],
+      // @ts-ignore
+      amenities: property.propertyamenity?.map((pa: any) => pa.amenity) || [],
     };
   } catch (error) {
     console.error("❌ Error obteniendo propiedad:", error);
@@ -149,14 +177,18 @@ export const getPropertyByIdWithLandlord = async (id: number) => {
     const property = await prisma.property.findUnique({
       where: { id },
       include: {
-        propertyImages: {
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyimage: {
           orderBy: { displayOrder: "asc" },
         },
-        propertyAmenities: {
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyamenity: {
           include: {
             amenity: true,
           },
         },
+        comuna: true, // Incluir información de la comuna
+        region: true, // Incluir información de la región
       },
     });
 
@@ -172,8 +204,10 @@ export const getPropertyByIdWithLandlord = async (id: number) => {
 
     return {
       ...property,
-      images: property.propertyImages.map((img) => img.imageUrl),
-      amenities: property.propertyAmenities.map((pa) => pa.amenity),
+      // @ts-ignore
+      images: property.propertyimage?.map((img: any) => img.imageUrl) || [],
+      // @ts-ignore
+      amenities: property.propertyamenity?.map((pa: any) => pa.amenity) || [],
       landlord: landlordInfo || {
         id: property.landlordId,
         landlordName: "Landlord no encontrado",
@@ -248,10 +282,12 @@ export const getProperties = async (filters: PropertyFilters) => {
         take: limit,
         orderBy: { createdAt: "desc" },
         include: {
-          propertyImages: {
+          // @ts-ignore - Prisma schema usa lowercase
+          propertyimage: {
             orderBy: { displayOrder: "asc" },
           },
-          propertyAmenities: {
+          // @ts-ignore - Prisma schema usa lowercase
+          propertyamenity: {
             include: {
               amenity: true,
             },
@@ -262,11 +298,11 @@ export const getProperties = async (filters: PropertyFilters) => {
     ]);
 
     // Parsear campos de forma segura
-    const parsedProperties = properties.map((property) => {
+    const parsedProperties = properties.map((property: any) => {
       return {
         ...property,
-        images: property.propertyImages.map((img) => img.imageUrl),
-        amenities: property.propertyAmenities.map((pa) => pa.amenity),
+        images: property.propertyimage?.map((img: any) => img.imageUrl) || [],
+        amenities: property.propertyamenity?.map((pa: any) => pa.amenity) || [],
       };
     });
 
@@ -353,11 +389,13 @@ export const getPropertiesWithLandlordInfo = async (
         take: limit,
         orderBy: { createdAt: "desc" },
         include: {
-          propertyImages: {
-            where: { isPrimary: true }, // Solo imagen principal para performance
-            take: 1,
+          // @ts-ignore - Prisma schema usa lowercase
+          propertyimage: {
+            orderBy: { displayOrder: 'asc' }, // Ordenar por displayOrder
+            take: 1, // Solo traer la primera imagen
           },
-          propertyAmenities: {
+          // @ts-ignore - Prisma schema usa lowercase
+          propertyamenity: {
             include: {
               amenity: {
                 select: {
@@ -369,6 +407,8 @@ export const getPropertiesWithLandlordInfo = async (
               },
             },
           },
+          comuna: true, // Incluir información de la comuna
+          region: true, // Incluir información de la región
         },
       }),
       prisma.property.count({ where }),
@@ -389,13 +429,13 @@ export const getPropertiesWithLandlordInfo = async (
     );
 
     // Combinar datos de propiedades con información de landlords
-    const propertiesWithLandlord = properties.map((property) => {
+    const propertiesWithLandlord = properties.map((property: any) => {
       const landlordInfo = landlordsMap.get(property.landlordId);
 
       return {
         ...property,
-        images: property.propertyImages.map((img) => img.imageUrl),
-        amenities: property.propertyAmenities.map((pa) => pa.amenity),
+        images: property.propertyimage?.map((img: any) => img.imageUrl) || [],
+        amenities: property.propertyamenity?.map((pa: any) => pa.amenity) || [],
         landlord: landlordInfo || {
           id: property.landlordId,
           landlordName: "Landlord no encontrado",
@@ -437,6 +477,7 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
     const {
       id,
       images,
+      imagesToDelete,
       replaceImages,
       amenities,
       landlordId,
@@ -446,7 +487,10 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
 
     // Preparar datos para actualización (sin landlordId ni landlordName)
     // El landlord no se puede cambiar en una actualización
-    const updatePayload: any = { ...data };
+    const updatePayload: any = { 
+      ...data,
+      updatedAt: new Date() // Campo requerido por Prisma
+    };
 
     console.log("📤 Payload que se enviará a Prisma:", updatePayload);
     console.log("🆔 ID de propiedad a actualizar:", id);
@@ -474,32 +518,49 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
       if (images && images.length > 0) {
         if (replaceImages) {
           // Eliminar todas las imágenes existentes
-          await tx.propertyImage.deleteMany({
+          await tx.propertyimage.deleteMany({
             where: { propertyId: id },
           });
         }
 
         // Agregar las nuevas imágenes
-        await tx.propertyImage.createMany({
+        await tx.propertyimage.createMany({
           data: images.map((imageUrl, index) => ({
             propertyId: id,
             imageUrl,
             displayOrder: index,
             isPrimary: index === 0,
             altText: `Imagen ${index + 1} de ${updatedProperty.title}`,
+            updatedAt: new Date(), // Campo requerido
           })),
         });
+      }
+
+      // Eliminar imágenes específicas si se proporcionan
+      if (imagesToDelete && imagesToDelete.length > 0) {
+        console.log(`🗑️ Eliminando ${imagesToDelete.length} imágenes específicas...`);
+        
+        await tx.propertyimage.deleteMany({
+          where: {
+            propertyId: id,
+            imageUrl: {
+              in: imagesToDelete,
+            },
+          },
+        });
+        
+        console.log(`✅ Imágenes eliminadas correctamente`);
       }
 
       // Manejar amenities si se proporcionan
       if (amenities && amenities.length > 0) {
         // Eliminar todas las relaciones existentes de amenities
-        await tx.propertyAmenity.deleteMany({
+        await tx.propertyamenity.deleteMany({
           where: { propertyId: id },
         });
 
         // Crear las nuevas relaciones con amenities
-        await tx.propertyAmenity.createMany({
+        await tx.propertyamenity.createMany({
           data: amenities.map((amenityId) => ({
             propertyId: id,
             amenityId: amenityId,
@@ -515,10 +576,12 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
       return await tx.property.findUnique({
         where: { id },
         include: {
-          propertyImages: {
+          // @ts-ignore - Prisma schema usa lowercase
+          propertyimage: {
             orderBy: { displayOrder: "asc" },
           },
-          propertyAmenities: {
+          // @ts-ignore - Prisma schema usa lowercase
+          propertyamenity: {
             include: {
               amenity: true,
             },
@@ -537,14 +600,18 @@ export const updateProperty = async (updateData: UpdatePropertyInput) => {
       monthlyRent: result.monthlyRent,
       isAvailable: result.isAvailable,
       updatedAt: result.updatedAt,
-      imageCount: result.propertyImages.length,
-      amenityCount: result.propertyAmenities.length,
+      // @ts-ignore
+      imageCount: result.propertyimage?.length || 0,
+      // @ts-ignore
+      amenityCount: result.propertyamenity?.length || 0,
     });
 
-    const finalResult = {
+    const finalResult: any = {
       ...result,
-      images: result.propertyImages.map((img) => img.imageUrl),
-      amenities: result.propertyAmenities.map((pa) => pa.amenity),
+      // @ts-ignore
+      images: result.propertyimage?.map((img: any) => img.imageUrl) || [],
+      // @ts-ignore
+      amenities: result.propertyamenity?.map((pa: any) => pa.amenity) || [],
     };
 
     console.log("📄 Resultado final preparado para respuesta");
@@ -612,12 +679,16 @@ export const getPropertiesByLandlordId = async (landlordId: number) => {
         landlordId: landlordId,
       },
       include: {
-        propertyImages: true,
-        propertyAmenities: {
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyimage: true,
+        // @ts-ignore - Prisma schema usa lowercase
+        propertyamenity: {
           include: {
             amenity: true,
           },
         },
+        comuna: true, // Incluir información de la comuna
+        region: true, // Incluir información de la región
       },
       orderBy: {
         createdAt: "desc", // Ordenar por más recientes primero
@@ -625,10 +696,11 @@ export const getPropertiesByLandlordId = async (landlordId: number) => {
     });
 
     // Transformar los datos para que sean consistentes con el formato esperado
-    const transformedProperties = properties.map((property) => ({
+    const transformedProperties = properties.map((property: any) => ({
       ...property,
-      amenities: property.propertyAmenities.map((pa: any) => pa.amenity),
-      propertyAmenities: undefined, // Remover el campo original
+      propertyImages: property.propertyimage || [],
+      propertyAmenities: property.propertyamenity || [],
+      amenities: property.propertyamenity?.map((pa: any) => pa.amenity) || [],
     }));
 
     return transformedProperties;

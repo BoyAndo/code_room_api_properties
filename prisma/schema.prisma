@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -14,105 +8,99 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// MODELOS DE USUARIOS
-// ============================================
-
-model Student {
-  id                    Int      @id @default(autoincrement())
-  studentRut            String   @unique
-  studentEmail          String   @unique
-  studentName           String
-  password              String
-  studentCollege        String
-  studentCertificateUrl String
-  role                  String
-  comunaId              Int      // Foreign key a Comuna (obligatorio)
-  regionId              Int      // Foreign key a Region (obligatorio)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
-  // Relaciones de ubicación
-  comuna                Comuna   @relation(fields: [comunaId], references: [id], onDelete: Restrict, map: "Student_comuna_fkey")
-  region                Region   @relation(fields: [regionId], references: [id], onDelete: Restrict, map: "Student_region_fkey")
-  
-  // Relación con refresh tokens
-  refreshTokens         RefreshToken[]
-  
-  @@index([comunaId])
-  @@index([regionId])
+model amenity {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique(map: "Amenity_name_key") @db.VarChar(100)
+  description     String?           @db.Text
+  icon            String?           @db.VarChar(50)
+  category        String?           @db.VarChar(50)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  propertyamenity propertyamenity[]
 }
 
-model Landlord {
-  id                Int      @id @default(autoincrement())
-  landlordRut       String   @unique
-  landlordEmail     String   @unique
+model comuna {
+  id        Int        @id @default(autoincrement())
+  name      String     @db.VarChar(100)
+  regionId  Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime
+  region    region     @relation(fields: [regionId], references: [id], onDelete: Cascade, map: "Comuna_regionId_fkey")
+  landlord  landlord[]
+  property  property[]
+  student   student[]
+
+  @@index([name, regionId], map: "Comuna_name_regionId_idx")
+  @@index([regionId], map: "Comuna_regionId_idx")
+}
+
+model landlord {
+  id                Int            @id @default(autoincrement())
+  landlordRut       String         @unique(map: "Landlord_landlordRut_key")
+  landlordEmail     String         @unique(map: "Landlord_landlordEmail_key")
   landlordName      String
   password          String
   landlordCarnetUrl String
-  role              String   @default("landlord")
-  comunaId          Int      // Foreign key a Comuna (obligatorio)
-  regionId          Int      // Foreign key a Region (obligatorio)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relación con propiedades
-  properties        Property[]
-  
-  // Relaciones de ubicación
-  comuna            Comuna   @relation(fields: [comunaId], references: [id], onDelete: Restrict, map: "Landlord_comuna_fkey")
-  region            Region   @relation(fields: [regionId], references: [id], onDelete: Restrict, map: "Landlord_region_fkey")
-  
-  // Relación con refresh tokens
-  refreshTokens     RefreshToken[]
-  
-  @@index([comunaId])
-  @@index([regionId])
+  role              String         @default("landlord")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime
+  comunaId          Int
+  regionId          Int
+  profilePhotoUrl   String?
+  comuna            comuna         @relation(fields: [comunaId], references: [id], map: "Landlord_comuna_fkey")
+  region            region         @relation(fields: [regionId], references: [id], map: "Landlord_region_fkey")
+  property          property[]
+  refreshtoken      refreshtoken[]
+
+  @@index([comunaId], map: "Landlord_comunaId_idx")
+  @@index([regionId], map: "Landlord_regionId_idx")
 }
 
-// ============================================
-// MODELOS DE PROPIEDADES (para referencia)
-// ============================================
+model property {
+  id                   Int                   @id @default(autoincrement())
+  landlordId           Int
+  title                String
+  description          String?               @db.Text
+  address              String
+  propertyType         property_propertyType
+  bedrooms             Int
+  bathrooms            Int
+  squareMeters         Float?
+  monthlyRent          Decimal               @db.Decimal(10, 2)
+  isAvailable          Boolean               @default(true)
+  utilityBillUrl       String
+  utilityBillValidated Boolean               @default(false)
+  latitude             Decimal?              @db.Decimal(10, 8)
+  longitude            Decimal?              @db.Decimal(11, 8)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime
+  comunaId             Int
+  regionId             Int
+  comuna               comuna                @relation(fields: [comunaId], references: [id], map: "Property_comuna_fkey")
+  landlord             landlord              @relation(fields: [landlordId], references: [id], onDelete: Cascade, map: "Property_landlordId_fkey")
+  region               region                @relation(fields: [regionId], references: [id], map: "Property_region_fkey")
+  propertyamenity      propertyamenity[]
+  propertyimage        propertyimage[]
 
-// Enum para tipos de propiedad
-enum PropertyType {
-  APARTMENT
-  HOUSE
-  ROOM
+  @@index([comunaId], map: "Property_comunaId_idx")
+  @@index([landlordId], map: "Property_landlordId_idx")
+  @@index([regionId], map: "Property_regionId_idx")
 }
 
-model Property {
-  id                    Int      @id @default(autoincrement())
-  landlordId            Int      // Foreign key al landlord
-  title                 String
-  description           String?  @db.Text
-  address               String
-  comunaId              Int      // Foreign key a Comuna
-  regionId              Int      // Foreign key a Region
-  propertyType          PropertyType
-  bedrooms              Int
-  bathrooms             Int
-  squareMeters          Float?
-  monthlyRent           Decimal  @db.Decimal(10, 2)
-  isAvailable          Boolean  @default(true)
-  utilityBillUrl        String
-  utilityBillValidated  Boolean  @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
-  // Relaciones
-  landlord              Landlord          @relation(fields: [landlordId], references: [id], onDelete: Cascade)
-  comuna                Comuna            @relation(fields: [comunaId], references: [id], onDelete: Restrict, map: "Property_comuna_fkey")
-  region                Region            @relation(fields: [regionId], references: [id], onDelete: Restrict, map: "Property_region_fkey")
-  propertyImages        PropertyImage[]
-  propertyAmenities     PropertyAmenity[]
-  
-  @@index([landlordId])
-  @@index([comunaId])
-  @@index([regionId])
+model propertyamenity {
+  id         Int      @id @default(autoincrement())
+  propertyId Int
+  amenityId  Int
+  createdAt  DateTime @default(now())
+  amenity    amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade, map: "PropertyAmenity_amenityId_fkey")
+  property   property @relation(fields: [propertyId], references: [id], onDelete: Cascade, map: "PropertyAmenity_propertyId_fkey")
+
+  @@unique([propertyId, amenityId], map: "PropertyAmenity_propertyId_amenityId_key")
+  @@index([amenityId], map: "PropertyAmenity_amenityId_idx")
+  @@index([propertyId], map: "PropertyAmenity_propertyId_idx")
 }
 
-model PropertyImage {
+model propertyimage {
   id           Int      @id @default(autoincrement())
   propertyId   Int
   imageUrl     String   @db.VarChar(500)
@@ -120,99 +108,71 @@ model PropertyImage {
   altText      String?  @db.VarChar(255)
   isPrimary    Boolean  @default(false)
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  
-  @@index([propertyId, displayOrder])
-  @@index([propertyId, isPrimary])
+  updatedAt    DateTime
+  property     property @relation(fields: [propertyId], references: [id], onDelete: Cascade, map: "PropertyImage_propertyId_fkey")
+
+  @@index([propertyId, displayOrder], map: "PropertyImage_propertyId_displayOrder_idx")
+  @@index([propertyId, isPrimary], map: "PropertyImage_propertyId_isPrimary_idx")
 }
 
-model Amenity {
-  id                Int                @id @default(autoincrement())
-  name              String             @unique @db.VarChar(100)
-  description       String?            @db.Text
-  icon              String?            @db.VarChar(50)
-  category          String?            @db.VarChar(50)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  
-  propertyAmenities PropertyAmenity[]
+model refreshtoken {
+  id         Int       @id @default(autoincrement())
+  token      String    @unique(map: "RefreshToken_token_key") @db.VarChar(500)
+  studentId  Int?
+  landlordId Int?
+  userType   String    @db.VarChar(20)
+  isRevoked  Boolean   @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  landlord   landlord? @relation(fields: [landlordId], references: [id], onDelete: Cascade, map: "RefreshToken_landlord_fkey")
+  student    student?  @relation(fields: [studentId], references: [id], onDelete: Cascade, map: "RefreshToken_student_fkey")
+
+  @@index([expiresAt], map: "RefreshToken_expiresAt_idx")
+  @@index([landlordId], map: "RefreshToken_landlordId_idx")
+  @@index([studentId], map: "RefreshToken_studentId_idx")
+  @@index([token], map: "RefreshToken_token_idx")
 }
 
-model PropertyAmenity {
-  id         Int      @id @default(autoincrement())
-  propertyId Int
-  amenityId  Int
-  createdAt  DateTime @default(now())
-  
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
-  
-  @@unique([propertyId, amenityId])
-  @@index([propertyId])
-  @@index([amenityId])
+model region {
+  id          Int        @id @default(autoincrement())
+  code        String     @unique(map: "Region_code_key") @db.VarChar(10)
+  name        String     @db.VarChar(100)
+  romanNumber String     @db.VarChar(10)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  comuna      comuna[]
+  landlord    landlord[]
+  property    property[]
+  student     student[]
+
+  @@index([code], map: "Region_code_idx")
 }
 
-// ============================================
-// MODELOS DE UBICACIÓN (CHILE)
-// ============================================
+model student {
+  id                    Int            @id @default(autoincrement())
+  studentRut            String         @unique(map: "Student_studentRut_key")
+  studentEmail          String         @unique(map: "Student_studentEmail_key")
+  studentName           String
+  password              String
+  studentCollege        String
+  studentCertificateUrl String
+  role                  String
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime
+  comunaId              Int
+  regionId              Int
+  profilePhotoUrl       String?
+  refreshtoken          refreshtoken[]
+  comuna                comuna         @relation(fields: [comunaId], references: [id], map: "Student_comuna_fkey")
+  region                region         @relation(fields: [regionId], references: [id], map: "Student_region_fkey")
 
-model Region {
-  id          Int      @id @default(autoincrement())
-  code        String   @unique @db.VarChar(10) // Ej: "RM", "V", "VIII"
-  name        String   @db.VarChar(100) // Ej: "Región Metropolitana"
-  romanNumber String   @db.VarChar(10)  // Ej: "XIII"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relaciones
-  comunas     Comuna[]
-  properties  Property[]
-  students    Student[]
-  landlords   Landlord[]
-  
-  @@index([code])
+  @@index([comunaId], map: "Student_comunaId_idx")
+  @@index([regionId], map: "Student_regionId_idx")
 }
 
-model Comuna {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(100) // Ej: "Santiago", "Las Condes"
-  regionId  Int      // Foreign key a Region
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  // Relaciones
-  region      Region     @relation(fields: [regionId], references: [id], onDelete: Cascade)
-  properties  Property[]
-  students    Student[]
-  landlords   Landlord[]
-  
-  @@index([regionId])
-  @@index([name, regionId])
-}
-
-// ============================================
-// MODELO DE REFRESH TOKENS
-// ============================================
-
-model RefreshToken {
-  id          Int       @id @default(autoincrement())
-  token       String    @unique @db.VarChar(500) // El refresh token JWT
-  studentId   Int?      // ID del estudiante (nullable)
-  landlordId  Int?      // ID del landlord (nullable)
-  userType    String    @db.VarChar(20) // "student" o "landlord"
-  isRevoked   Boolean   @default(false) // Para invalidar tokens
-  expiresAt   DateTime  // Fecha de expiración
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relaciones polimórficas
-  student     Student?  @relation(fields: [studentId], references: [id], onDelete: Cascade, map: "RefreshToken_student_fkey")
-  landlord    Landlord? @relation(fields: [landlordId], references: [id], onDelete: Cascade, map: "RefreshToken_landlord_fkey")
-  
-  @@index([token])
-  @@index([studentId])
-  @@index([landlordId])
-  @@index([expiresAt])
+enum property_propertyType {
+  APARTMENT
+  HOUSE
+  ROOM
 }

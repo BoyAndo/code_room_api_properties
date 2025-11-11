@@ -393,6 +393,15 @@ export const updatePropertyController = async (req: Request, res: Response) => {
     console.log("📥 Datos del body recibidos:", req.body);
     console.log("🆔 ID de la propiedad:", id);
 
+    // Verificar si hay imágenes a eliminar
+    const imagesToDelete = req.body.imagesToDelete 
+      ? (typeof req.body.imagesToDelete === 'string' 
+          ? JSON.parse(req.body.imagesToDelete) 
+          : req.body.imagesToDelete)
+      : [];
+    
+    console.log("🗑️ Imágenes a eliminar:", imagesToDelete);
+
     // Verificar si se subieron nuevas imágenes
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const propertyImageFiles = files?.propertyImages || [];
@@ -443,8 +452,9 @@ export const updatePropertyController = async (req: Request, res: Response) => {
         finalUpdateData = {
           ...updateData,
           images: newImageUrls,
+          imagesToDelete: imagesToDelete, // Incluir imágenes a eliminar
         };
-        console.log("� Reemplazando todas las imágenes con:", newImageUrls);
+        console.log("🔄 Reemplazando todas las imágenes con:", newImageUrls);
       } else {
         // Obtener imágenes existentes (ya parseadas por getPropertyById)
         const existingImages = existingProperty.images || [];
@@ -454,9 +464,17 @@ export const updatePropertyController = async (req: Request, res: Response) => {
         finalUpdateData = {
           ...updateData,
           images: allImages,
+          imagesToDelete: imagesToDelete, // Incluir imágenes a eliminar
         };
         console.log("📸 Agregando nuevas imágenes. Total:", allImages);
       }
+    } else if (imagesToDelete.length > 0) {
+      // Si no hay nuevas imágenes pero sí hay imágenes a eliminar
+      finalUpdateData = {
+        ...updateData,
+        imagesToDelete: imagesToDelete,
+      };
+      console.log("🗑️ Solo eliminando imágenes:", imagesToDelete);
     }
 
     const updatedProperty = await updateProperty(finalUpdateData);

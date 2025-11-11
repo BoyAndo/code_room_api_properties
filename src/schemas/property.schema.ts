@@ -25,6 +25,40 @@ export const createPropertySchema = z.object({
   description: z.string().optional(),
   address: z.string().min(10, "La dirección debe tener al menos 10 caracteres"),
 
+  // Coordenadas para ubicación exacta en el mapa
+  latitude: z
+    .union([
+      z.number().min(-56).max(-17),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num)) {
+          throw new Error("La latitud debe ser un número válido");
+        }
+        if (num < -56 || num > -17) {
+          throw new Error("La latitud debe estar entre -56 y -17 (Chile)");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  longitude: z
+    .union([
+      z.number().min(-75).max(-66),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num)) {
+          throw new Error("La longitud debe ser un número válido");
+        }
+        if (num < -75 || num > -66) {
+          throw new Error("La longitud debe estar entre -75 y -66 (Chile)");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+
   // Nombres para validación con Tesseract
   regionName: z.string().min(2, "El nombre de la región es requerido"),
   comunaName: z.string().min(2, "El nombre de la comuna es requerido"),
@@ -155,6 +189,40 @@ export const updatePropertySchema = z.object({
   title: z.string().min(5).max(100).optional(),
   description: z.string().optional(),
   address: z.string().min(10).optional(),
+
+  // Coordenadas para ubicación exacta en el mapa
+  latitude: z
+    .union([
+      z.number().min(-56).max(-17),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num)) {
+          throw new Error("La latitud debe ser un número válido");
+        }
+        if (num < -56 || num > -17) {
+          throw new Error("La latitud debe estar entre -56 y -17 (Chile)");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
+  longitude: z
+    .union([
+      z.number().min(-75).max(-66),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return undefined;
+        const num = parseFloat(val);
+        if (isNaN(num)) {
+          throw new Error("La longitud debe ser un número válido");
+        }
+        if (num < -75 || num > -66) {
+          throw new Error("La longitud debe estar entre -75 y -66 (Chile)");
+        }
+        return num;
+      }),
+    ])
+    .optional(),
 
   // Nombres para validación con Tesseract (opcionales en actualización)
   regionName: z.string().min(2).optional(),
@@ -289,6 +357,19 @@ export const updatePropertySchema = z.object({
     ])
     .optional(),
   images: z.array(z.string()).optional(), // Array de URLs de imágenes
+  imagesToDelete: z
+    .union([
+      z.array(z.string()),
+      z.string().transform((val) => {
+        if (!val || val.trim() === "") return [];
+        try {
+          return JSON.parse(val);
+        } catch {
+          return [];
+        }
+      }),
+    ])
+    .optional(), // Array de URLs de imágenes a eliminar
   replaceImages: z
     .union([
       z.boolean(),
