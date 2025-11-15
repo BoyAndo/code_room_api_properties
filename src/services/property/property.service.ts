@@ -293,79 +293,86 @@ export const getProperties = async (filters: PropertyFilters) => {
  * Obtiene propiedades con información de landlords y PAGINACIÓN.
  * La cláusula 'where' y 'orderBy' es construida en el controlador.
  */
-export const getPropertiesWithLandlordInfo = async (combinedFilters: any) => { 
-    try {
-        // 1. Desestructurar los filtros del objeto combinado (incluye where, orderBy, page, limit)
-        const { 
-            where, 
-            orderBy, 
-            page = 1, // Asumimos valores por defecto
-            limit = 10,
-        } = combinedFilters;
+export const getPropertiesWithLandlordInfo = async (combinedFilters: any) => {
+  try {
+    // 1. Desestructurar los filtros del objeto combinado (incluye where, orderBy, page, limit)
+    const {
+      where,
+      orderBy,
+      page = 1, // Asumimos valores por defecto
+      limit = 10,
+    } = combinedFilters;
 
-        const skip = (page - 1) * limit;
-        
-        // 2. Ejecutar la consulta con Prisma
-        const properties = await prisma.property.findMany({
-            where: where || {},         // ⬅️ USA EL OBJETO 'WHERE' DEL CONTROLADOR
-            orderBy: orderBy || { createdAt: 'desc' }, // ⬅️ USA EL OBJETO 'ORDERBY' DEL CONTROLADOR
-            skip: skip,
-            take: limit,
-            
-            // 3. Mantener la lógica de inclusiones
-            include: {
-                // Asumo que tu modelo 'Property' tiene el campo 'landlordId'
-                // Landlord no se puede incluir directamente si está en otro servicio (fetchLandlordsInfo)
-                propertyImages: {
-                    orderBy: { displayOrder: "asc" },
-                },
-                propertyAmenities: {
-                    include: {
-                        amenity: true,
-                    },
-                },
-                // Si tu modelo Property tiene relaciones Region/Comuna, inclúyelas
-            },
-        });
-        
-        // 4. Obtener información de Landlords (Landlord Info Service)
-        const landlordIds = properties.map(p => p.landlordId);
-        const uniqueLandlordIds = [...new Set(landlordIds)];
-        const landlordsInfo = await fetchLandlordsInfo(uniqueLandlordIds);
+    const skip = (page - 1) * limit;
 
-        // 5. Mapear y devolver el resultado (similar a getPropertyByIdWithLandlord)
-        const propertiesWithInfo = properties.map(property => {
-            const landlordInfo = landlordsInfo.find(l => l.id === property.landlordId) || {
-                id: property.landlordId,
-                landlordName: "Landlord no encontrado",
-            };
-            
-            return {
-                ...property,
-                images: property.propertyImages.map((img) => img.imageUrl),
-                amenities: property.propertyAmenities.map((pa) => pa.amenity),
-                landlord: landlordInfo,
-            };
-        });
+    // 2. Ejecutar la consulta con Prisma
+    const properties = await prisma.property.findMany({
+      where: where || {}, // ⬅️ USA EL OBJETO 'WHERE' DEL CONTROLADOR
+      orderBy: orderBy || { createdAt: "desc" }, // ⬅️ USA EL OBJETO 'ORDERBY' DEL CONTROLADOR
+      skip: skip,
+      take: limit,
 
-        // 6. Obtener el total de propiedades para la paginación (con WHERE)
-        const total = await prisma.property.count({ where: where || {} });
+      // 3. Mantener la lógica de inclusiones
+      include: {
+        // Asumo que tu modelo 'Property' tiene el campo 'landlordId'
+        // Landlord no se puede incluir directamente si está en otro servicio (fetchLandlordsInfo)
+        propertyImages: {
+          orderBy: { displayOrder: "asc" },
+        },
+        propertyAmenities: {
+          include: {
+            amenity: true,
+          },
+        },
+        // ✅ INCLUIR RELACIONES DE COMUNA Y REGIÓN
+        comuna: true,
+        region: true,
+      },
+    });
 
-        return {
-            properties: propertiesWithInfo,
-            total: total,
-            page: page,
-            limit: limit,
-            totalPages: Math.ceil(total / limit),
-        };
-    } catch (error) {
-        console.error("❌ Error obteniendo propiedades con landlord info:", error);
-        throw new Error(
-            `Error obteniendo propiedades con landlord info: ${
-                error instanceof Error ? error.message : "Error desconocido"
-            }`
-        );
-    }
+    // 4. Obtener información de Landlords (Landlord Info Service)
+    const landlordIds = properties.map((p) => p.landlordId);
+    const uniqueLandlordIds = [...new Set(landlordIds)];
+    const landlordsInfo = await fetchLandlordsInfo(uniqueLandlordIds);
+
+    // 5. Mapear y devolver el resultado (similar a getPropertyByIdWithLandlord)
+    const propertiesWithInfo = properties.map((property) => {
+      const landlordInfo = landlordsInfo.find(
+        (l) => l.id === property.landlordId
+      ) || {
+        id: property.landlordId,
+        landlordName: "Landlord no encontrado",
+      };
+
+      return {
+        ...property,
+        // ✅ Agregar el nombre de comuna y región como strings para el frontend
+        comunaName: property.comuna?.name || "",
+        regionName: property.region?.name || "",
+        images: property.propertyImages.map((img) => img.imageUrl),
+        amenities: property.propertyAmenities.map((pa) => pa.amenity),
+        landlord: landlordInfo,
+      };
+    });
+
+    // 6. Obtener el total de propiedades para la paginación (con WHERE)
+    const total = await prisma.property.count({ where: where || {} });
+
+    return {
+      properties: propertiesWithInfo,
+      total: total,
+      page: page,
+      limit: limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  } catch (error) {
+    console.error("❌ Error obteniendo propiedades con landlord info:", error);
+    throw new Error(
+      `Error obteniendo propiedades con landlord info: ${
+        error instanceof Error ? error.message : "Error desconocido"
+      }`
+    );
+  }
 };
 
 /**

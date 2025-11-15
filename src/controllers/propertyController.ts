@@ -720,6 +720,7 @@ export const getPropertiesWithLandlordController = async (
           name: {
             // <--- CLAVE: El nombre del campo en el modelo Comuna
             contains: comuna,
+            // MySQL hace búsquedas case-insensitive por defecto con contains
           },
         },
       };
