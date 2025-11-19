@@ -74,6 +74,23 @@ USER expressjs
 # Expose port
 EXPOSE 3002
 
+# Variables de entorno requeridas para producción
+ENV PORT=3002 \
+    JWT_SECRET="kJ8#mN9$pQ2@wE5!rT7&yU1*iO3^aS6%dF4+gH0-lK9=xC2@vB5!nM8%zQ7*wE3&" \
+    JWT_EXPIRES_IN=120h \
+    DATABASE_URL="mysql://root:howlin404@uroom.cbmkwgi8u37x.us-east-1.rds.amazonaws.com:3306/code_room" \
+    MYSQL_USER="root" \
+    MYSQL_PASSWORD="" \
+    MYSQL_DB="code_room" \
+    GOOGLE_MAPS_API_KEY=AIzaSyBQNL9rePdFP6H5sW-iPkLsjjGj_GPYNGg \
+    MINIO_ENDPOINT=http://44.206.67.3:9000 \
+    MINIO_USER=minioadmin \
+    MINIO_PASS=minioadmin123 \
+    URL_S3=http://44.206.67.3:9000/certificados/ \
+    URL_S3_CARNETS=http://44.206.67.3:9000/carnets/ \
+    URL_S3_UTILITYBILLS=http://44.206.67.3:9000/utilitybills/ \
+    URL_S3_PROPERTY_IMAGES=http://44.206.67.3:9000/properties/
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3002/health || exit 1
