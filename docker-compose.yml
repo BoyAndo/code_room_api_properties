@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  api_properties:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: code_room_api_properties
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env
+    volumes:
+      - /tmp/uploads:/tmp/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

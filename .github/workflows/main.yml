@@ -1,0 +1,144 @@
+name: code_room_api_properties
+on:
+    push:
+        branches:
+            - production
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Comprobar y obtener codigo
+              uses: actions/checkout@v4
+
+            - name: Crear carpeta en AWS
+              uses: appleboy/ssh-action@v1
+              with:
+                    host: ${{secrets.IP_SERVER}}
+                    username: ${{secrets.USERNAME}}
+                    key: ${{secrets.KEY}}
+                    port: ${{secrets.PORT}}
+                    script: |
+                            mkdir -p /home/ubuntu/code_room_api_properties
+
+            - name: sincronizar proyecto en el servidor
+              uses: burnett01/rsync-deployments@7.0.2
+              with:
+                switches: "-avz --delete"
+                path: "./"
+                remote_host: ${{secrets.IP_SERVER}}
+                remote_user: ${{secrets.USERNAME}}
+                remote_path: "/home/ubuntu/code_room_api_properties"
+                remote_key: ${{secrets.KEY}}
+                remote_port: ${{secrets.PORT}}
+
+            - name: Instalar Docker y Docker Compose en servidor
+              uses: appleboy/ssh-action@v1
+              with:
+                host: ${{secrets.IP_SERVER}}
+                username: ${{secrets.USERNAME}}
+                key: ${{secrets.KEY}}
+                port: ${{secrets.PORT}}
+                script: |
+                    # Instalar Docker si no existe
+                    if ! command -v docker &> /dev/null; then
+                        echo "Instalando Docker..."
+                        sudo apt-get update
+                        sudo apt-get install -y ca-certificates curl
+                        sudo install -m 0755 -d /etc/apt/keyrings
+                        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+                        sudo chmod a+r /etc/apt/keyrings/docker.asc
+                        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                        sudo apt-get update
+                        sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+                        sudo usermod -aG docker ubuntu
+                    fi
+                    
+                    # Verificar instalación
+                    docker --version
+                    docker compose version
+
+            - name: Verificar archivo .env en el servidor
+              uses: appleboy/ssh-action@v1
+              with:
+                host: ${{secrets.IP_SERVER}}
+                username: ${{secrets.USERNAME}}
+                key: ${{secrets.KEY}}
+                port: ${{secrets.PORT}}
+                script: |
+                    cd /home/ubuntu/code_room_api_properties
+                    
+                    if [ ! -f .env ]; then
+                        echo "⚠️  Archivo .env no encontrado en /home/ubuntu/code_room_api_properties"
+                        echo "⚠️  Por favor, crea el archivo .env manualmente en la instancia EC2"
+                        echo "⚠️  El deployment continuará pero el contenedor necesitará las variables de entorno"
+                    else
+                        echo "✅ Archivo .env encontrado"
+                        echo "Variables configuradas:"
+                        grep -E "^[A-Z]" .env | cut -d'=' -f1 | sort
+                    fi
+
+            - name: Limpiar contenedores y construir imagen
+              uses: appleboy/ssh-action@v1
+              with:
+                host: ${{secrets.IP_SERVER}}
+                username: ${{secrets.USERNAME}}
+                key: ${{secrets.KEY}}
+                port: ${{secrets.PORT}}
+                command_timeout: 30m
+                script: |
+                    cd /home/ubuntu/code_room_api_properties
+                    
+                    # Detener contenedores antiguos
+                    docker compose down || true
+                    
+                    # Limpiar espacio en disco
+                    echo "Limpiando imágenes antiguas..."
+                    docker system prune -af --volumes
+                    
+                    # Construir imagen sin cache
+                    echo "Construyendo imagen Express API Properties..."
+                    docker compose build --no-cache
+                    
+                    echo "Levantando contenedor..."
+                    docker compose up -d
+                    
+                    # Esperar 15 segundos para que inicie
+                    sleep 15
+                    
+                    # Verificar estado
+                    echo "Estado del contenedor:"
+                    docker compose ps
+                    
+                    echo "Últimas líneas del log:"
+                    docker compose logs --tail=50
+
+            - name: Verificar salud del contenedor
+              uses: appleboy/ssh-action@v1
+              with:
+                host: ${{secrets.IP_SERVER}}
+                username: ${{secrets.USERNAME}}
+                key: ${{secrets.KEY}}
+                port: ${{secrets.PORT}}
+                script: |
+                    cd /home/ubuntu/code_room_api_properties
+                    
+                    # Esperar hasta 60 segundos a que el contenedor esté listo
+                    for i in {1..12}; do
+                        if docker compose ps | grep -q "Up"; then
+                            echo "✅ Contenedor corriendo correctamente"
+                            docker compose logs --tail=30
+                            
+                            # Probar endpoint de health
+                            echo "Probando endpoint de salud..."
+                            sleep 5
+                            curl -f http://localhost:3002/health || echo "⚠️ El servidor aún no responde"
+                            
+                            exit 0
+                        fi
+                        echo "Esperando que el contenedor inicie... ($i/12)"
+                        sleep 5
+                    done
+                    
+                    echo "❌ El contenedor no inició correctamente"
+                    docker compose logs
+                    exit 1
