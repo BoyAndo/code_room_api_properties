@@ -9,8 +9,7 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3002"
-    env_file:
-      - .env
+    # env_file eliminado, las variables se definen en el Dockerfile
     volumes:
       - /tmp/uploads:/tmp/uploads
     healthcheck:
