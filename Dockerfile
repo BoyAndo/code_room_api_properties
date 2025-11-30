@@ -83,13 +83,13 @@ ENV PORT=3002 \
     MYSQL_PASSWORD="" \
     MYSQL_DB="code_room" \
     GOOGLE_MAPS_API_KEY=AIzaSyBQNL9rePdFP6H5sW-iPkLsjjGj_GPYNGg \
-    MINIO_ENDPOINT=http://34.193.38.162:9000 \
+    MINIO_ENDPOINT=https://uroom_api_storage.gabogrobier.dev/ \
     MINIO_USER=minioadmin \
     MINIO_PASS=minioadmin123 \
-    URL_S3=http://34.193.38.162:9000/certificados/ \
-    URL_S3_CARNETS=http://34.193.38.162:9000/carnets/ \
-    URL_S3_UTILITYBILLS=http://34.193.38.162:9000/utilitybills/ \
-    URL_S3_PROPERTY_IMAGES=http://34.193.38.162:9000/properties/
+    URL_S3=https://uroom_api_storage.gabogrobier.dev/certificados/ \
+    URL_S3_CARNETS=https://uroom_api_storage.gabogrobier.dev/carnets/ \
+    URL_S3_UTILITYBILLS=https://uroom_api_storage.gabogrobier.dev/utilitybills/ \
+    URL_S3_PROPERTY_IMAGES=https://uroom_api_storage.gabogrobier.dev/properties/
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
