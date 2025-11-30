@@ -12,10 +12,10 @@ import {
 
 const app = express();
 
-// ✅ CORS abierto para todos los orígenes (solo para desarrollo o pruebas)
+// ✅ CORS configurado para el dominio HTTPS del frontend
 app.use(
   cors({
-    origin: "*",
+    origin: "https://uroom-frontend.gabogrobier.dev", // ✅ Subdominio HTTPS del frontend
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
