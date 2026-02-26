@@ -34,6 +34,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy source code
 COPY . .
 
+# Reinstall Prisma to ensure Alpine compatibility
+RUN npm install prisma@6.13.0 @prisma/client@6.13.0 --legacy-peer-deps
+
 # Generate Prisma Client
 RUN npx prisma generate
 
